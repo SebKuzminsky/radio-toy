@@ -7,6 +7,7 @@ Zero](https://flipperzero.one/) and the
 
 Raspberry Pi Pico, Micro-SD card.
 
+
 ## Radio chip
 
 * [CC1101](https://www.ti.com/product/CC1101)
@@ -31,3 +32,12 @@ space).
 * Read & clone RFID tags (like the card that gets me into the hack space).
 
 * Read & clone the NFC stuff in credit cards.
+
+
+# CC1101 info
+
+<https://github.com/mengguang/cc1101>
+
+<https://github.com/mcore1976/cc1101-tool>
+
+<https://github.com/LSatan/SmartRC-CC1101-Driver-Lib>
