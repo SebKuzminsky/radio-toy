@@ -20,7 +20,12 @@ Raspberry Pi Pico, Micro-SD card.
 
 ## Radio chip
 
-* [CC1101](https://www.ti.com/product/CC1101)
+* [CC1101](https://www.ti.com/product/CC1101).  Lots of modules available.
+I have a D-Sun CC1101 and an Ebyte E07-M1101D, they seem about equivalent.
+SMA connector, 2x5 male pin header, 2 mounting holes near the antenna.
+There's also one called AS07-M1101S.  For building into a portable
+product, a module with solderable through holes instead of the pin header
+may be preferable.
 
 * [Semtech Sx1276](https://www.semtech.com/products/wireless-rf/lora-connect/sx1276)
 
@@ -51,10 +56,12 @@ UI on a phone, or have a screen & buttons for a UI,
 ```
 
 
-# CC1101 info
+# CC1101 info & projects
 
 <https://github.com/mengguang/cc1101>
 
 <https://github.com/mcore1976/cc1101-tool>
 
 <https://github.com/LSatan/SmartRC-CC1101-Driver-Lib>
+
+<https://github.com/gusgorman402/RFmoggy>
