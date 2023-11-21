@@ -83,6 +83,39 @@ void read_serial(void) {
 }
 
 
+//
+// Read one byte from the register `addr`.  Return the status byte in
+// `status` and the register value in `value`.  Returns True on success,
+// False on failure.
+//
+
+bool read_register(spi_inst_t * spi, uint const csn_gpio, uint8_t const addr, uint8_t * status, uint8_t * value) {
+    int r;
+    uint8_t out = 0x80 | (addr & 0x3f);  // read register, no burst
+
+    gpio_put(csn_gpio, 0);
+    // printf("cc1101 SO pin is %d\n", gpio_get(spi_rx_gpio));
+
+    r = spi_write_read_blocking(spi, &out, status, sizeof(out));
+    if (r != 1) {
+        printf("failed spi register address write: %d\n", r);
+        return false;
+    }
+
+    r = spi_read_blocking(spi, 0x00, value, sizeof(*value));
+    if (r != 1) {
+        printf("failed spi read: %d\n", r);
+        return false;
+    }
+
+    gpio_put(csn_gpio, 1);
+
+    // printf("addr 0x%02x: 0x%02x (status=0x%02x)\n", addr, in, status);
+
+    return true;
+}
+
+
 int main() {
     stdio_init_all();
     clocks_init();
@@ -120,33 +153,18 @@ int main() {
     // spi_set_format(spi1, 8, SPI_CPOL_1, SPI_CPHA_0, SPI_MSB_FIRST);
     // spi_set_format(spi1, 8, SPI_CPOL_1, SPI_CPHA_1, SPI_MSB_FIRST);
 
-    // Here's a transaction
-    int r;
-    uint8_t out;
+    bool r;
     uint8_t status;
-    uint8_t in;
+    uint8_t value;
 
     while (1) {
-        for (uint addr = 0x00; addr < 0x30; ++addr) {
-            // printf("cc1101 SO pin is %d\n", gpio_get(spi_rx_gpio));
-            gpio_put(spi_csn_gpio, 0);
-            // printf("cc1101 SO pin is %d\n", gpio_get(spi_rx_gpio));
-
-            out = 0x80 | addr;  // read register, no burst
-            r = spi_write_read_blocking(spi1, &out, &status, sizeof(out));
-            if (r != 1) {
-                printf("failed spi transfer: %d\n", r);
+        for (uint8_t addr = 0x00; addr < 0x30; ++addr) {
+            r = read_register(spi1, spi_csn_gpio, addr, &status, &value);
+            if (r) {
+                printf("addr 0x%02x: 0x%02x (status=0x%02x)\n", addr, value, status);
+            } else {
+                printf("failed to read register 0x%02x\n", addr);
             }
-
-            r = spi_read_blocking(spi1, 0x00, &in, sizeof(in));
-            if (r != 1) {
-                printf("failed spi read: %d\n", r);
-            }
-
-            gpio_put(spi_csn_gpio, 1);
-
-            printf("addr 0x%02x: 0x%02x (status=0x%02x)\n", addr, in, status);
-
             sleep_ms(1);
         }
         sleep_ms(3*1000);
