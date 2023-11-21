@@ -1,11 +1,14 @@
 #include <cstdio>
 #include <ctype.h>
-#include <string.h>
+#include <math.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "pico/stdlib.h"
 #include "hardware/clocks.h"
 #include "hardware/spi.h"
+
+#include "cc1101.h"
 
 
 // Rising edge on this GPIO indicates beginning of a transmission,
@@ -116,6 +119,64 @@ bool read_register(spi_inst_t * spi, uint const csn_gpio, uint8_t const addr, ui
 }
 
 
+//
+// Write one byte to the register `addr`.  Return the status byte in
+// `status`.  Returns True on success, False on failure.
+//
+
+bool write_register(spi_inst_t * spi, uint const csn_gpio, uint8_t const addr, uint8_t const value, uint8_t * status0, uint8_t * status1) {
+    int r;
+    uint8_t out = addr & 0x3f;  // write register, no burst
+
+    gpio_put(csn_gpio, 0);
+    // printf("cc1101 SO pin is %d\n", gpio_get(spi_rx_gpio));
+
+    r = spi_write_read_blocking(spi, &out, status0, sizeof(out));
+    if (r != 1) {
+        printf("failed spi register address write: %d\n", r);
+        return false;
+    }
+
+    r = spi_write_read_blocking(spi, &value, status1, sizeof(value));
+    if (r != 1) {
+        printf("failed spi register data write: %d\n", r);
+        return false;
+    }
+
+    gpio_put(csn_gpio, 1);
+
+    // printf("addr 0x%02x: 0x%02x (status=0x%02x)\n", addr, in, status);
+
+    return true;
+}
+
+
+//
+// Write a Command Strobe to the register `addr`.  Return the status byte in
+// `status`.  Returns True on success, False on failure.
+//
+
+bool command_strobe(spi_inst_t * spi, uint const csn_gpio, uint8_t const addr, uint8_t * status0) {
+    int r;
+    uint8_t out = addr & 0x3f;  // write register, no burst
+
+    gpio_put(csn_gpio, 0);
+    // printf("cc1101 SO pin is %d\n", gpio_get(spi_rx_gpio));
+
+    r = spi_write_read_blocking(spi, &out, status0, sizeof(out));
+    if (r != 1) {
+        printf("failed spi register address write: %d\n", r);
+        return false;
+    }
+
+    gpio_put(csn_gpio, 1);
+
+    // printf("addr 0x%02x: 0x%02x (status=0x%02x)\n", addr, in, status);
+
+    return true;
+}
+
+
 int main() {
     stdio_init_all();
     clocks_init();
@@ -154,23 +215,211 @@ int main() {
     // spi_set_format(spi1, 8, SPI_CPOL_1, SPI_CPHA_1, SPI_MSB_FIRST);
 
     bool r;
-    uint8_t status;
+    uint8_t addr;
+    uint8_t status0, status1;
     uint8_t value;
 
-    while (1) {
-        for (uint8_t addr = 0x00; addr < 0x30; ++addr) {
-            r = read_register(spi1, spi_csn_gpio, addr, &status, &value);
-            if (r) {
-                printf("addr 0x%02x: 0x%02x (status=0x%02x)\n", addr, value, status);
-            } else {
-                printf("failed to read register 0x%02x\n", addr);
-            }
-            sleep_ms(1);
+    for (addr = 0x00; addr < 0x30; ++addr) {
+        r = read_register(spi1, spi_csn_gpio, addr, &status0, &value);
+        if (r) {
+            printf("addr 0x%02x: 0x%02x (status=0x%02x)\n", addr, value, status0);
+        } else {
+            printf("failed to read register 0x%02x\n", addr);
         }
-        sleep_ms(3*1000);
+        sleep_ms(1);
     }
 
+    // Set modem to ASK/OOK
+    addr = MDMCFG2;
+    value = 0x30;
+    r = write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+    if (r) {
+        printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
+    } else {
+        printf("failed to write register 0x%02x\n", addr);
+    }
+
+    // Configure for OOK per Design Note DN022.
+    // * AGCCTRL2 = 0x03 to 0x07
+    // * AGCCTRL1 = 0x00
+    // * AGCCTRL0 = 0x91 or 0x92
+
+    addr = AGCCTRL2;
+    value = 0x03;
+    r = write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+    if (r) {
+        printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
+    } else {
+        printf("failed to write register 0x%02x\n", addr);
+    }
+
+    addr = AGCCTRL1;
+    value = 0x00;
+    r = write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+    if (r) {
+        printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
+    } else {
+        printf("failed to write register 0x%02x\n", addr);
+    }
+
+    addr = AGCCTRL0;
+    value = 0x91;
+    r = write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+    if (r) {
+        printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
+    } else {
+        printf("failed to write register 0x%02x\n", addr);
+    }
+
+    // Set IF frequency.
+    //
+    // FIXME: i think this is the bandwidth of the receiver, not the
+    // frequency of the carrier wave?
+    //
+    // We want to receive a 3 kHz signal.
+    // 3_000 = (26_000_000/2**10) * x
+    // 1/x = (26_000_000/2**10)/3_000
+    // x = 3_000/(26_000_000/2**10)
+    // x = 0.118, round up to 1
+
+    addr = FSCTRL1;
+    value = 0x01;
+    r = write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+    if (r) {
+        printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
+    } else {
+        printf("failed to write register 0x%02x\n", addr);
+    }
+
+    // FREND1:
+    //     RX filter bandwidth > 101 kHz, FREND1 = 0xB6
+    //     RX filter bandwidth ≤ 101 kHz, FREND1 = 0x56
+    // TEST2:
+    //     RX filter bandwidth > 325 kHz, TEST2 = 0x88
+    //     RX filter bandwidth ≤ 325 kHz, TEST2 = 0x81
+    // TEST1:
+    //     RX filter bandwidth > 325 kHz, TEST1 = 0x31
+    //     RX filter bandwidth ≤ 325 kHz, TEST1 = 0x35
+    // FIFOTHR:
+    //     RX filter bandwidth > 325 kHz, FIFOTHR = 0x07
+    //     RX filter bandwidth ≤ 325 kHz, FIFOTHR = 0x47
+
+    addr = FREND1;
+    value = 0x56;
+    r = write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+    if (r) {
+        printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
+    } else {
+        printf("failed to write register 0x%02x\n", addr);
+    }
+
+    addr = TEST2;
+    value = 0x81;
+    r = write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+    if (r) {
+        printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
+    } else {
+        printf("failed to write register 0x%02x\n", addr);
+    }
+
+    addr = TEST1;
+    value = 0x35;
+    r = write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+    if (r) {
+        printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
+    } else {
+        printf("failed to write register 0x%02x\n", addr);
+    }
+
+    addr = FIFOTHR;
+    value = 0x47;
+    r = write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+    if (r) {
+        printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
+    } else {
+        printf("failed to write register 0x%02x\n", addr);
+    }
+
+    // Set the base frequency.
+    //
+    // f_carrier = (f_xosc/2**16) * FREQ
+    // 1/FREQ = (f_xosc/2**16) / f_carrier
+    // FREQ =  f_carrier / (f_xosc/2**16)
+    //
+    // FREQ = 433_920_000 / (26_000_000/2**16)
+    // FREQ = 1093745
+
+    uint32_t divisor = 26000000 / pow(2, 16);
+    uint32_t freq = 433920000 / divisor;
+
+    addr = FREQ2;
+    value = 0x3f & (freq >> 16);
+    r = write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+    if (r) {
+        printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
+    } else {
+        printf("failed to write register 0x%02x\n", addr);
+    }
+
+    addr = FREQ1;
+    value = 0xff & (freq >> 8);
+    r = write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+    if (r) {
+        printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
+    } else {
+        printf("failed to write register 0x%02x\n", addr);
+    }
+
+    addr = FREQ0;
+    value = 0xff & freq;
+    r = write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+    if (r) {
+        printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
+    } else {
+        printf("failed to write register 0x%02x\n", addr);
+    }
+
+    addr = SCAL;
+    r = command_strobe(spi1, spi_csn_gpio, addr, &status0);
+    if (r) {
+        printf("command strobe addr 0x%02x (status0=0x%02x)\n", addr, status0);
+    } else {
+        printf("failed to write command strobe register 0x%02x\n", addr);
+    }
+
+    addr = MCSM1;
+    value = 0x32;
+    r = write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+    if (r) {
+        printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
+    } else {
+        printf("failed to write register 0x%02x\n", addr);
+    }
+
+    addr = STX;
+    r = command_strobe(spi1, spi_csn_gpio, addr, &status0);
+    if (r) {
+        printf("command strobe addr 0x%02x (status0=0x%02x %s)\n", addr, status0, status_decode(status0));
+    } else {
+        printf("failed to write command strobe register 0x%02x\n", addr);
+    }
+
+    sleep_ms(2 * 1000);
+
+    addr = FIFO;
+    value = 0x00;
     for (;;) {
-        read_serial();
+        r = write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+        if (r) {
+            printf("write addr 0x%02x=0x%02x\n", addr, value);
+            printf("    status0=%s\n", status_decode(status0));
+            printf("    status1=%s\n", status_decode(status1));
+        } else {
+            printf("failed to write register 0x%02x\n", addr);
+        }
+        ++value;
+
+        // read_serial();
+        sleep_ms(100);
     }
 }
