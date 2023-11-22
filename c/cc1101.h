@@ -183,7 +183,24 @@ typedef struct {
     uint tx_gpio;
     uint rx_gpio;
     uint csn_gpio;
+
+    bool debug;
+    bool panic_on_error;
 } cc1101_t;
+
+
+#define cc1101_debug(cc1101, fmt, ...) \
+    do { if (cc1101->debug) printf(fmt, ## __VA_ARGS__); } while (0)
+
+
+void cc1101_set_debug(cc1101_t * cc1101, bool debug) {
+    cc1101->debug = debug;
+}
+
+
+void cc1101_set_panic_on_error(cc1101_t * cc1101, bool panic_on_error) {
+    cc1101->panic_on_error = panic_on_error;
+}
 
 
 cc1101_t * cc1101_init(
@@ -227,6 +244,9 @@ cc1101_t * cc1101_init(
     // spi_set_format(spi1, 8, SPI_CPOL_1, SPI_CPHA_0, SPI_MSB_FIRST);
     // spi_set_format(spi1, 8, SPI_CPOL_1, SPI_CPHA_1, SPI_MSB_FIRST);
 
+    cc1101->debug = false;
+    cc1101->panic_on_error = false;
+
     return cc1101;
 }
 
@@ -263,23 +283,30 @@ static bool cc1101_read_register(cc1101_t * cc1101, uint8_t const addr, uint8_t 
     uint8_t out = 0x80 | (addr & 0x3f);  // read register, no burst
 
     gpio_put(cc1101->csn_gpio, 0);
-    // printf("cc1101 SO pin is %d\n", gpio_get(spi_rx_gpio));
 
     r = spi_write_read_blocking(cc1101->spi, &out, status, sizeof(out));
     if (r != 1) {
-        printf("failed spi register address write: %d\n", r);
-        return false;
+        if (cc1101->panic_on_error) {
+            panic("failed spi register address write: %d\n", r);
+        } else {
+            printf("failed spi register address write: %d\n", r);
+            return false;
+        }
     }
 
     r = spi_read_blocking(cc1101->spi, 0x00, value, sizeof(*value));
     if (r != 1) {
-        printf("failed spi read: %d\n", r);
-        return false;
+        if (cc1101->panic_on_error) {
+            panic("failed spi read: %d\n", r);
+        } else {
+            printf("failed spi read: %d\n", r);
+            return false;
+        }
     }
 
     gpio_put(cc1101->csn_gpio, 1);
 
-    printf("read addr %s(0x%02x)=0x%02x (status=%s)\n", cc1101_register_name[addr], addr, *value, cc1101_status_decode(*status));
+    cc1101_debug(cc1101, "read addr %s(0x%02x)=0x%02x (status=%s)\n", cc1101_register_name[addr], addr, *value, cc1101_status_decode(*status));
 
     return true;
 }
@@ -299,20 +326,28 @@ static bool cc1101_read_registers(cc1101_t * cc1101, uint8_t const addr, uint8_t
 
     r = spi_write_read_blocking(cc1101->spi, &out, status, sizeof(out));
     if (r != 1) {
-        printf("failed spi register address write: %d\n", r);
-        return false;
+        if (cc1101->panic_on_error) {
+            panic("failed spi register address write: %d\n", r);
+        } else {
+            printf("failed spi register address write: %d\n", r);
+            return false;
+        }
     }
 
     r = spi_read_blocking(cc1101->spi, 0x00, value, count);
     if (r != (int)count) {
-        printf("failed spi read: %d\n", r);
-        return false;
+        if (cc1101->panic_on_error) {
+            panic("failed spi read: %d\n", r);
+        } else {
+            printf("failed spi read: %d\n", r);
+            return false;
+        }
     }
 
     gpio_put(cc1101->csn_gpio, 1);
 
-    printf("burst read %u bytes from addr %s(0x%02x) (status=%s):\n", count, cc1101_register_name[addr], addr, cc1101_status_decode(*status));
-    {
+    cc1101_debug(cc1101, "burst read %u bytes from addr %s(0x%02x) (status=%s):\n", count, cc1101_register_name[addr], addr, cc1101_status_decode(*status));
+    if (cc1101->debug) {
         size_t i;
         for (i = 0; i < count; ++i) {
             if (i % 8 == 0) printf("    ");
@@ -337,23 +372,30 @@ static bool cc1101_write_register(cc1101_t * cc1101, uint8_t const addr, uint8_t
     uint8_t out = addr & 0x3f;  // write register, no burst
 
     gpio_put(cc1101->csn_gpio, 0);
-    // printf("cc1101 SO pin is %d\n", gpio_get(spi_rx_gpio));
 
     r = spi_write_read_blocking(cc1101->spi, &out, status0, sizeof(out));
     if (r != 1) {
-        printf("failed spi register address write: %d\n", r);
-        return false;
+        if (cc1101->panic_on_error) {
+            panic("failed spi register address write: %d\n", r);
+        } else {
+            printf("failed spi register address write: %d\n", r);
+            return false;
+        }
     }
 
     r = spi_write_read_blocking(cc1101->spi, &value, status1, sizeof(value));
     if (r != 1) {
-        printf("failed spi register data write: %d\n", r);
-        return false;
+        if (cc1101->panic_on_error) {
+            panic("failed spi register data write: %d\n", r);
+        } else {
+            printf("failed spi register data write: %d\n", r);
+            return false;
+        }
     }
 
     gpio_put(cc1101->csn_gpio, 1);
 
-    printf("write addr %s(0x%02x)=0x%02x (status=%s)\n", cc1101_register_name[addr], addr, value, cc1101_status_decode(*status0));
+    cc1101_debug(cc1101, "write addr %s(0x%02x)=0x%02x (status=%s)\n", cc1101_register_name[addr], addr, value, cc1101_status_decode(*status0));
 
     return true;
 }
@@ -370,31 +412,40 @@ static bool cc1101_write_registers(cc1101_t * cc1101, uint8_t const addr, uint8_
     uint8_t out = 0x40 | (addr & 0x3f);  // write register with burst
 
     gpio_put(cc1101->csn_gpio, 0);
-    // printf("cc1101 SO pin is %d\n", gpio_get(spi_rx_gpio));
 
     r = spi_write_read_blocking(cc1101->spi, &out, &status[0], sizeof(out));
     if (r != 1) {
-        printf("failed spi register address write: %d\n", r);
-        return false;
+        if (cc1101->panic_on_error) {
+            panic("failed spi register address write: %d\n", r);
+        } else {
+            printf("failed spi register address write: %d\n", r);
+            return false;
+        }
     }
 
     r = spi_write_read_blocking(cc1101->spi, value, &status[1], count);
     if (r != (int)count) {
-        printf("failed spi register data write: %d\n", r);
-        return false;
+        if (cc1101->panic_on_error) {
+            panic("failed spi register data write: %d\n", r);
+        } else {
+            printf("failed spi register data write: %d\n", r);
+            return false;
+        }
     }
 
     gpio_put(cc1101->csn_gpio, 1);
 
-    printf("burst write %u bytes to addr %s(0x%02x) (status=%s):\n", count, cc1101_register_name[addr], addr, cc1101_status_decode(*status));
-    size_t i = 0;
-    for (size_t i = 0; i < count; ++i) {
-        if (i % 8 == 0) printf("    ");
-        printf("0x%02x ", value[i]);
-        if (i % 4 == 3) printf(" ");
-        if (i % 8 == 7) printf("\n");
+    cc1101_debug(cc1101, "burst write %u bytes to addr %s(0x%02x) (status=%s):\n", count, cc1101_register_name[addr], addr, cc1101_status_decode(*status));
+    if (cc1101->debug) {
+        size_t i = 0;
+        for (size_t i = 0; i < count; ++i) {
+            if (i % 8 == 0) printf("    ");
+            printf("0x%02x ", value[i]);
+            if (i % 4 == 3) printf(" ");
+            if (i % 8 == 7) printf("\n");
+        }
+        if (i % 8 != 7) printf("\n");
     }
-    if (i % 8 != 7) printf("\n");
 
     return true;
 }
@@ -410,17 +461,20 @@ static bool cc1101_command_strobe(cc1101_t * cc1101, uint8_t const addr, uint8_t
     uint8_t out = addr & 0x3f;  // write register, no burst
 
     gpio_put(cc1101->csn_gpio, 0);
-    // printf("cc1101 SO pin is %d\n", gpio_get(spi_rx_gpio));
 
     r = spi_write_read_blocking(cc1101->spi, &out, status, sizeof(out));
     if (r != 1) {
-        printf("failed spi register address write: %d\n", r);
-        return false;
+        if (cc1101->panic_on_error) {
+            panic("failed spi register address write: %d\n", r);
+        } else {
+            printf("failed spi register address write: %d\n", r);
+            return false;
+        }
     }
 
     gpio_put(cc1101->csn_gpio, 1);
 
-    printf("command strobe %s(0x%02x) (status=%s)\n", cc1101_strobe_name[addr-0x30], addr, cc1101_status_decode(*status));
+    cc1101_debug(cc1101, "command strobe %s(0x%02x) (status=%s)\n", cc1101_strobe_name[addr-0x30], addr, cc1101_status_decode(*status));
 
     return true;
 }
@@ -434,22 +488,23 @@ static void cc1101_dump_registers(cc1101_t * cc1101) {
 
     for (addr = 0x00; addr < 0x2f; ++addr) {
         r = cc1101_read_register(cc1101, addr, &status0, &value);
-        if (r) {
-            // printf("%s(0x%02x): 0x%02x (status=%s)\n", cc1101_register_name[addr], addr, value, cc1101_status_decode(status0));
-        } else {
+        if (!r) {
             printf("failed to read register %s(0x%02x)\n", cc1101_register_name[addr], addr);
+            return;
         }
+        printf("read addr %s(0x%02x)=0x%02x (status=%s)\n", cc1101_register_name[addr], addr, value, cc1101_status_decode(status0));
     }
 
     uint8_t patable[8];
     r = cc1101_read_registers(cc1101, PATABLE, &status0, patable, 8);
-    if (r) {
-        // printf("patable (status=%s):\n", cc1101_status_decode(status0));
-        // for (int i = 0; i < 8; ++i) {
-            // printf("    %d: 0x%02x \n", i, patable[i]);
-        // }
-    } else {
+    if (!r) {
         printf("failed to read patable\n");
+        return;
+    }
+
+    printf("patable (status=%s):\n", cc1101_status_decode(status0));
+    for (int i = 0; i < 8; ++i) {
+        printf("    %d: 0x%02x \n", i, patable[i]);
     }
 }
 
