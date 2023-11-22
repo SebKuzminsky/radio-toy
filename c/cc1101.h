@@ -1,6 +1,11 @@
 #ifndef __CC1101_H
 #define __CC1101_H
 
+
+#include "hardware/spi.h"
+
+
+// Register addresses
 #define IOCFG2   (0x00)
 #define IOCFG1   (0x01)
 #define IOCFG0   (0x02)
@@ -49,6 +54,7 @@
 #define TEST1    (0x2d)
 #define TEST0    (0x2e)
 
+// Addresses of the multibyte registers.
 #define PARTNUM        (0x30)
 #define VERSION        (0x31)
 #define FREQEST        (0x32)
@@ -66,7 +72,7 @@
 #define PATABLE        (0x3e)
 #define FIFO           (0x3f)
 
-// Command Strobes
+// Addresses of Command Strobes
 #define SRES    (0x30)
 #define SFSTXON (0x31)
 #define SXOFF   (0x32)
@@ -83,6 +89,7 @@
 #define SNOP    (0x3d)
 
 
+// Names of the registers (normal and multi-byte), indexed by address.
 static char const * cc1101_register_name[] = {
     "IOCFG2",
     "IOCFG1",
@@ -151,7 +158,7 @@ static char const * cc1101_register_name[] = {
 };
 
 
-// The index here is `addr - 0x30`.
+// Names of command strobes.  The index here is `addr - 0x30`.
 static char const * cc1101_strobe_name[] = {
     "SRES",
     "SFSTXON",
@@ -168,6 +175,60 @@ static char const * cc1101_strobe_name[] = {
     "SWORRST",
     "SNOP",
 };
+
+
+typedef struct {
+    spi_inst_t * spi;
+    uint sck_gpio;
+    uint tx_gpio;
+    uint rx_gpio;
+    uint csn_gpio;
+} cc1101_t;
+
+
+cc1101_t * cc1101_init(
+    spi_inst_t * spi,
+    uint spi_sck_gpio,
+    uint spi_tx_gpio,
+    uint spi_rx_gpio,
+    uint spi_csn_gpio
+) {
+    cc1101_t * cc1101 = (cc1101_t*)calloc(1, sizeof(cc1101_t));
+    if (cc1101 == nullptr) {
+        return nullptr;
+    }
+
+    cc1101->spi = spi;
+    cc1101->sck_gpio = spi_sck_gpio;
+    cc1101->tx_gpio = spi_tx_gpio;
+    cc1101->rx_gpio = spi_rx_gpio;
+    cc1101->csn_gpio = spi_csn_gpio;
+
+    gpio_init(cc1101->sck_gpio);
+    gpio_set_function(cc1101->sck_gpio, GPIO_FUNC_SPI);
+    gpio_set_dir(cc1101->sck_gpio, true);  // output
+
+    gpio_init(cc1101->tx_gpio);
+    gpio_set_function(cc1101->tx_gpio, GPIO_FUNC_SPI);
+    gpio_set_dir(cc1101->tx_gpio, true);  // output
+
+    gpio_init(cc1101->rx_gpio);
+    gpio_set_function(cc1101->rx_gpio, GPIO_FUNC_SPI);
+    gpio_set_dir(cc1101->rx_gpio, false);  // input
+
+    gpio_init(cc1101->csn_gpio);
+    gpio_set_function(cc1101->csn_gpio, GPIO_FUNC_SIO);
+    gpio_set_dir(cc1101->csn_gpio, true);  // output
+
+    spi_init(cc1101->spi, 5 * 1000 * 1000);
+
+    // spi_set_format(spi1, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
+    // spi_set_format(spi1, 8, SPI_CPOL_0, SPI_CPHA_1, SPI_MSB_FIRST);
+    // spi_set_format(spi1, 8, SPI_CPOL_1, SPI_CPHA_0, SPI_MSB_FIRST);
+    // spi_set_format(spi1, 8, SPI_CPOL_1, SPI_CPHA_1, SPI_MSB_FIRST);
+
+    return cc1101;
+}
 
 
 static char const * cc1101_status_decode(uint8_t const status) {
@@ -197,26 +258,26 @@ static char const * cc1101_status_decode(uint8_t const status) {
 // False on failure.
 //
 
-static bool cc1101_read_register(spi_inst_t * spi, uint const csn_gpio, uint8_t const addr, uint8_t * status, uint8_t * value) {
+static bool cc1101_read_register(cc1101_t * cc1101, uint8_t const addr, uint8_t * status, uint8_t * value) {
     int r;
     uint8_t out = 0x80 | (addr & 0x3f);  // read register, no burst
 
-    gpio_put(csn_gpio, 0);
+    gpio_put(cc1101->csn_gpio, 0);
     // printf("cc1101 SO pin is %d\n", gpio_get(spi_rx_gpio));
 
-    r = spi_write_read_blocking(spi, &out, status, sizeof(out));
+    r = spi_write_read_blocking(cc1101->spi, &out, status, sizeof(out));
     if (r != 1) {
         printf("failed spi register address write: %d\n", r);
         return false;
     }
 
-    r = spi_read_blocking(spi, 0x00, value, sizeof(*value));
+    r = spi_read_blocking(cc1101->spi, 0x00, value, sizeof(*value));
     if (r != 1) {
         printf("failed spi read: %d\n", r);
         return false;
     }
 
-    gpio_put(csn_gpio, 1);
+    gpio_put(cc1101->csn_gpio, 1);
 
     printf("read addr %s(0x%02x)=0x%02x (status=%s)\n", cc1101_register_name[addr], addr, *value, cc1101_status_decode(*status));
 
@@ -230,26 +291,25 @@ static bool cc1101_read_register(spi_inst_t * spi, uint const csn_gpio, uint8_t 
 // Returns True on success, False on failure.
 //
 
-static bool cc1101_read_registers(spi_inst_t * spi, uint const csn_gpio, uint8_t const addr, uint8_t * status, uint8_t * value, size_t count) {
+static bool cc1101_read_registers(cc1101_t * cc1101, uint8_t const addr, uint8_t * status, uint8_t * value, size_t count) {
     int r;
     uint8_t out = 0x80 | 0x40 | (addr & 0x3f);  // read register with burst
 
-    gpio_put(csn_gpio, 0);
-    // printf("cc1101 SO pin is %d\n", gpio_get(spi_rx_gpio));
+    gpio_put(cc1101->csn_gpio, 0);
 
-    r = spi_write_read_blocking(spi, &out, status, sizeof(out));
+    r = spi_write_read_blocking(cc1101->spi, &out, status, sizeof(out));
     if (r != 1) {
         printf("failed spi register address write: %d\n", r);
         return false;
     }
 
-    r = spi_read_blocking(spi, 0x00, value, count);
+    r = spi_read_blocking(cc1101->spi, 0x00, value, count);
     if (r != (int)count) {
         printf("failed spi read: %d\n", r);
         return false;
     }
 
-    gpio_put(csn_gpio, 1);
+    gpio_put(cc1101->csn_gpio, 1);
 
     printf("burst read %u bytes from addr %s(0x%02x) (status=%s):\n", count, cc1101_register_name[addr], addr, cc1101_status_decode(*status));
     {
@@ -272,26 +332,26 @@ static bool cc1101_read_registers(spi_inst_t * spi, uint const csn_gpio, uint8_t
 // `status`.  Returns True on success, False on failure.
 //
 
-static bool cc1101_write_register(spi_inst_t * spi, uint const csn_gpio, uint8_t const addr, uint8_t const value, uint8_t * status0, uint8_t * status1) {
+static bool cc1101_write_register(cc1101_t * cc1101, uint8_t const addr, uint8_t const value, uint8_t * status0, uint8_t * status1) {
     int r;
     uint8_t out = addr & 0x3f;  // write register, no burst
 
-    gpio_put(csn_gpio, 0);
+    gpio_put(cc1101->csn_gpio, 0);
     // printf("cc1101 SO pin is %d\n", gpio_get(spi_rx_gpio));
 
-    r = spi_write_read_blocking(spi, &out, status0, sizeof(out));
+    r = spi_write_read_blocking(cc1101->spi, &out, status0, sizeof(out));
     if (r != 1) {
         printf("failed spi register address write: %d\n", r);
         return false;
     }
 
-    r = spi_write_read_blocking(spi, &value, status1, sizeof(value));
+    r = spi_write_read_blocking(cc1101->spi, &value, status1, sizeof(value));
     if (r != 1) {
         printf("failed spi register data write: %d\n", r);
         return false;
     }
 
-    gpio_put(csn_gpio, 1);
+    gpio_put(cc1101->csn_gpio, 1);
 
     printf("write addr %s(0x%02x)=0x%02x (status=%s)\n", cc1101_register_name[addr], addr, value, cc1101_status_decode(*status0));
 
@@ -305,26 +365,26 @@ static bool cc1101_write_register(spi_inst_t * spi, uint const csn_gpio, uint8_t
 // for writing the data).  Returns True on success, False on failure.
 //
 
-static bool cc1101_write_registers(spi_inst_t * spi, uint const csn_gpio, uint8_t const addr, uint8_t const * value, uint8_t * status, size_t count) {
+static bool cc1101_write_registers(cc1101_t * cc1101, uint8_t const addr, uint8_t const * value, uint8_t * status, size_t count) {
     int r;
     uint8_t out = 0x40 | (addr & 0x3f);  // write register with burst
 
-    gpio_put(csn_gpio, 0);
+    gpio_put(cc1101->csn_gpio, 0);
     // printf("cc1101 SO pin is %d\n", gpio_get(spi_rx_gpio));
 
-    r = spi_write_read_blocking(spi, &out, &status[0], sizeof(out));
+    r = spi_write_read_blocking(cc1101->spi, &out, &status[0], sizeof(out));
     if (r != 1) {
         printf("failed spi register address write: %d\n", r);
         return false;
     }
 
-    r = spi_write_read_blocking(spi, value, &status[1], count);
+    r = spi_write_read_blocking(cc1101->spi, value, &status[1], count);
     if (r != (int)count) {
         printf("failed spi register data write: %d\n", r);
         return false;
     }
 
-    gpio_put(csn_gpio, 1);
+    gpio_put(cc1101->csn_gpio, 1);
 
     printf("burst write %u bytes to addr %s(0x%02x) (status=%s):\n", count, cc1101_register_name[addr], addr, cc1101_status_decode(*status));
     size_t i = 0;
@@ -345,20 +405,20 @@ static bool cc1101_write_registers(spi_inst_t * spi, uint const csn_gpio, uint8_
 // `status`.  Returns True on success, False on failure.
 //
 
-static bool cc1101_command_strobe(spi_inst_t * spi, uint const csn_gpio, uint8_t const addr, uint8_t * status) {
+static bool cc1101_command_strobe(cc1101_t * cc1101, uint8_t const addr, uint8_t * status) {
     int r;
     uint8_t out = addr & 0x3f;  // write register, no burst
 
-    gpio_put(csn_gpio, 0);
+    gpio_put(cc1101->csn_gpio, 0);
     // printf("cc1101 SO pin is %d\n", gpio_get(spi_rx_gpio));
 
-    r = spi_write_read_blocking(spi, &out, status, sizeof(out));
+    r = spi_write_read_blocking(cc1101->spi, &out, status, sizeof(out));
     if (r != 1) {
         printf("failed spi register address write: %d\n", r);
         return false;
     }
 
-    gpio_put(csn_gpio, 1);
+    gpio_put(cc1101->csn_gpio, 1);
 
     printf("command strobe %s(0x%02x) (status=%s)\n", cc1101_strobe_name[addr-0x30], addr, cc1101_status_decode(*status));
 
@@ -366,14 +426,14 @@ static bool cc1101_command_strobe(spi_inst_t * spi, uint const csn_gpio, uint8_t
 }
 
 
-static void cc1101_dump_registers(spi_inst_t * spi, uint csn_gpio) {
+static void cc1101_dump_registers(cc1101_t * cc1101) {
     bool r;
     uint8_t addr;
     uint8_t status0;
     uint8_t value;
 
     for (addr = 0x00; addr < 0x2f; ++addr) {
-        r = cc1101_read_register(spi1, csn_gpio, addr, &status0, &value);
+        r = cc1101_read_register(cc1101, addr, &status0, &value);
         if (r) {
             // printf("%s(0x%02x): 0x%02x (status=%s)\n", cc1101_register_name[addr], addr, value, cc1101_status_decode(status0));
         } else {
@@ -382,7 +442,7 @@ static void cc1101_dump_registers(spi_inst_t * spi, uint csn_gpio) {
     }
 
     uint8_t patable[8];
-    r = cc1101_read_registers(spi1, csn_gpio, PATABLE, &status0, patable, 8);
+    r = cc1101_read_registers(cc1101, PATABLE, &status0, patable, 8);
     if (r) {
         // printf("patable (status=%s):\n", cc1101_status_decode(status0));
         // for (int i = 0; i < 8; ++i) {
