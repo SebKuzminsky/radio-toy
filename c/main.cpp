@@ -87,6 +87,9 @@ void read_serial(void) {
 
 
 int main() {
+    uint8_t values[100];
+    uint8_t statuses[100];
+
     stdio_init_all();
     clocks_init();
     sleep_ms(3*1000);
@@ -131,126 +134,52 @@ int main() {
     printf("registers at power on:\n");
     cc1101_dump_registers(spi1, spi_csn_gpio);
 
-    // Set modem to ASK/OOK
-    addr = MDMCFG2;
-    value = 0x30;
-    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
-    if (r) {
-        printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
-    } else {
-        printf("failed to write register 0x%02x\n", addr);
-    }
-
-    // Configure for OOK per Design Note DN022.
-    // * AGCCTRL2 = 0x03 to 0x07
-    // * AGCCTRL1 = 0x00
-    // * AGCCTRL0 = 0x91 or 0x92
-
-    addr = AGCCTRL2;
-    value = 0x03;
-    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
-    if (r) {
-        printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
-    } else {
-        printf("failed to write register 0x%02x\n", addr);
-    }
-
-    addr = AGCCTRL1;
-    value = 0x00;
-    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
-    if (r) {
-        printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
-    } else {
-        printf("failed to write register 0x%02x\n", addr);
-    }
-
-    addr = AGCCTRL0;
-    value = 0x91;
-    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
-    if (r) {
-        printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
-    } else {
-        printf("failed to write register 0x%02x\n", addr);
-    }
-
-    // Set IF frequency.
     //
-    // FIXME: i think this is the bandwidth of the receiver, not the
-    // frequency of the carrier wave?
+    // Configure the CC1101 for OOK at 433 MHz, 3 kbaud.
     //
-    // We want to receive a 3 kHz signal.
-    // 3_000 = (26_000_000/2**10) * x
-    // 1/x = (26_000_000/2**10)/3_000
-    // x = 3_000/(26_000_000/2**10)
-    // x = 0.118, round up to 1
 
-    addr = FSCTRL1;
-    value = 0x01;
-    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
-    if (r) {
-        printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
-    } else {
-        printf("failed to write register 0x%02x\n", addr);
-    }
-
-    // FREND1:
-    //     RX filter bandwidth > 101 kHz, FREND1 = 0xB6
-    //     RX filter bandwidth ≤ 101 kHz, FREND1 = 0x56
-    // TEST2:
-    //     RX filter bandwidth > 325 kHz, TEST2 = 0x88
-    //     RX filter bandwidth ≤ 325 kHz, TEST2 = 0x81
-    // TEST1:
-    //     RX filter bandwidth > 325 kHz, TEST1 = 0x31
-    //     RX filter bandwidth ≤ 325 kHz, TEST1 = 0x35
     // FIFOTHR:
     //     RX filter bandwidth > 325 kHz, FIFOTHR = 0x07
     //     RX filter bandwidth ≤ 325 kHz, FIFOTHR = 0x47
-
-    addr = FREND1;
-    value = 0x56;
-    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
-    if (r) {
-        printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
-    } else {
-        printf("failed to write register 0x%02x\n", addr);
-    }
-
-    addr = TEST2;
-    value = 0x81;
-    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
-    if (r) {
-        printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
-    } else {
-        printf("failed to write register 0x%02x\n", addr);
-    }
-
-    addr = TEST1;
-    value = 0x35;
-    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
-    if (r) {
-        printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
-    } else {
-        printf("failed to write register 0x%02x\n", addr);
-    }
-
     addr = FIFOTHR;
-    value = 0x47;
+    value = 0x40;
     r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
-    if (r) {
-        printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
-    } else {
-        printf("failed to write register 0x%02x\n", addr);
-    }
 
-    addr = FREND0;
-    value = 0x11;
+    addr = PKTLEN;
+    value = 0x10;
     r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
-    if (r) {
-        printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
-    } else {
-        printf("failed to write register 0x%02x\n", addr);
-    }
 
+    addr = PKTCTRL1;
+    value = 0x04;
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+
+    // Packet format:
+    // * whitening off
+    // * use FIFOs for Rx and Tx
+    // * disable CRC calculation on Tx and CRC check on Rx
+    // * fixed packet length specified by PKTLEN register
+    addr = PKTCTRL0;
+    value = 0x00;
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+
+    addr = ADDR;
+    value = 0x00;
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+
+    addr = CHANNR;
+    value = 0x00;
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+
+    // Set IF (intermediate frequency).
+    // FIXME
+
+    addr = FSCTRL1;
+    value = 0x0c;
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+
+    addr = FSCTRL0;
+    value = 0x00;
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
 
     // Set the base frequency.
     //
@@ -261,80 +190,216 @@ int main() {
     // FREQ = 433_920_000 / (26_000_000/2**16)
     // FREQ = 1093745
 
-    uint32_t divisor = 26000000 / pow(2, 16);
-    uint32_t freq = 433920000 / divisor;
+    uint32_t f_carrier = 433920000;
+    uint32_t f_xosc = 26000000;
+    uint32_t divisor = f_xosc / pow(2, 16);
+    uint32_t freq = f_carrier / divisor;
 
     addr = FREQ2;
     value = 0x3f & (freq >> 16);
     r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
-    if (r) {
-        printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
-    } else {
-        printf("failed to write register 0x%02x\n", addr);
-    }
 
     addr = FREQ1;
     value = 0xff & (freq >> 8);
     r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
-    if (r) {
-        printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
-    } else {
-        printf("failed to write register 0x%02x\n", addr);
-    }
 
     addr = FREQ0;
     value = 0xff & freq;
     r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
-    if (r) {
-        printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
-    } else {
-        printf("failed to write register 0x%02x\n", addr);
-    }
 
+
+    // Input bandwidth, ~203 kHz
+    addr = MDMCFG4;
+    value = 0x8c;
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+
+    // Data rate, ~115.2 kbaud
+    addr = MDMCFG3;
+    value = 0x34;
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+
+    // Set modem to ASK/OOK
+    addr = MDMCFG2;
+    value = 0x33; // ook, preamble
+    // value = 0x30; // ook, no preamble
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+
+    // Disable FEC, 2 preamble bytes
+    addr = MDMCFG1;
+    value = 0x22;
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+
+    addr = MDMCFG0;
+    value = 0xf8;
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+
+    // Not used for OOK
+    addr = DEVIATN;
+    value = 0x62;
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+
+    // Main Radio Control State Machine Configuration 1:
+    // * CCA_MODE=3 ??
+    // * RXOFF_MODE=0 (go to IDLE after receiving a packet)
+    // * TXOFF_MODE=0 (go to IDLE after transmitting a packet)
+    addr = MCSM1;
+    value = 0x30;
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+
+    // Main Radio Control State Machine Configuration 0:
+    // * FS_AUTOCAL=3 (calibrate every 4th time when going from RX or TX to IDLE)
+    addr = MCSM0;
+    value = 0x30;
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+
+
+    // Configure for OOK per Design Note DN022.
+    // * AGCCTRL2 = 0x03 to 0x07
+    // * AGCCTRL1 = 0x00
+    // * AGCCTRL0 = 0x91 or 0x92
+
+    addr = AGCCTRL2;
+    value = 0x03;
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+
+    addr = AGCCTRL1;
+    value = 0x00;
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+
+    addr = AGCCTRL0;
+    value = 0x91;
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+
+    addr = FSCAL3;
+    value = 0xea;
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+
+    addr = FSCAL2;
+    value = 0x2a;
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+
+    addr = FSCAL1;
+    value = 0x00;
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+
+    addr = FSCAL0;
+    value = 0x1f;
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+
+    // FREND1:
+    //     RX filter bandwidth > 101 kHz, FREND1 = 0xB6
+    //     RX filter bandwidth ≤ 101 kHz, FREND1 = 0x56
+    // TEST2:
+    //     RX filter bandwidth > 325 kHz, TEST2 = 0x88
+    //     RX filter bandwidth ≤ 325 kHz, TEST2 = 0x81
+    // TEST1:
+    //     RX filter bandwidth > 325 kHz, TEST1 = 0x31
+    //     RX filter bandwidth ≤ 325 kHz, TEST1 = 0x35
+
+    addr = FREND1;
+    value = 0xB6;
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+
+    addr = TEST2;
+    value = 0x88;
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+
+    addr = TEST1;
+    value = 0x31;
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+
+    addr = TEST0;
+    value = 0x09;
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+
+    addr = FREND0;
+    value = 0x11;
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+
+    addr = FOCCFG;
+    value = 0x1d;
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+
+    addr = BSCFG;
+    value = 0x1c;
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+
+
+    addr = PATABLE;
+    values[0] = 0x00;
+    values[1] = 0xc6;
+    r = cc1101_write_registers(spi1, spi_csn_gpio, addr, values, statuses, 2);
+
+#if 0
     addr = SCAL;
     r = cc1101_command_strobe(spi1, spi_csn_gpio, addr, &status0);
-    if (r) {
-        printf("command strobe addr 0x%02x (status0=0x%02x)\n", addr, status0);
-    } else {
-        printf("failed to write command strobe register 0x%02x\n", addr);
-    }
+#endif
 
-    addr = MCSM1;
-    value = 0x32;
-    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
-    if (r) {
-        printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
-    } else {
-        printf("failed to write register 0x%02x\n", addr);
-    }
+    // r = cc1101_command_strobe(spi1, spi_csn_gpio, SRX, &status0);
 
-    addr = STX;
-    r = cc1101_command_strobe(spi1, spi_csn_gpio, addr, &status0);
+    // Flush the TX FIFO
+    r = cc1101_command_strobe(spi1, spi_csn_gpio, SFTX, &status0);
+    r = cc1101_read_register(spi1, spi_csn_gpio, TXBYTES, &status0, &value);
     if (r) {
-        printf("command strobe addr 0x%02x (status0=0x%02x %s)\n", addr, status0, cc1101_status_decode(status0));
-    } else {
-        printf("failed to write command strobe register 0x%02x\n", addr);
+        printf("%d bytes in TXFIFO!\n", value);
     }
-
-    sleep_ms(2 * 1000);
 
     printf("registers after configuration:\n");
     cc1101_dump_registers(spi1, spi_csn_gpio);
 
-    addr = FIFO;
-    value = 0x00;
-    for (;;) {
-        r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
-        if (r) {
-            printf("write addr 0x%02x=0x%02x\n", addr, value);
-            printf("    status0=%s\n", cc1101_status_decode(status0));
-            printf("    status1=%s\n", cc1101_status_decode(status1));
-        } else {
-            printf("failed to write register 0x%02x\n", addr);
+#if 0
+    // This returns 0x00 in the first byte and 0xff in all the others.
+    cc1101_read_registers(spi1, spi_csn_gpio, PARTNUM, statuses, values, 10);
+    printf("PARTNUM: ");
+    for (int i = 0; i < 10; ++i) {
+        printf("0x%02x ", values[i]);
+    }
+    printf(" (");
+    for (int i = 0; i < 10; ++i) {
+        printf("%c ", values[i]);
+    }
+    printf(")\n");
+#endif
+
+    sleep_ms(2 * 1000);
+
+    // Calibrate the frequency synthesizer.  We're in IDLE Mode so this
+    // is allowed.
+    r = cc1101_command_strobe(spi1, spi_csn_gpio, SCAL, &status0);
+
+    // Wait for status to go back to IDLE
+    while (true) {
+        r = cc1101_read_registers(spi1, spi_csn_gpio, MARCSTATE, statuses, &value, 1);
+        if (r && ((value & 0x1f) == 0x1)) {
+            printf("IDLE!\n");
+            break;
         }
-        ++value;
+    }
+
+    uint8_t num = 0x00;
+    for (;;) {
+        for (int i = 0; i < 0x10; ++i) {
+            values[i] = num;
+            ++ num;
+        }
+        r = cc1101_write_registers(spi1, spi_csn_gpio, FIFO, values, statuses, 0x10);
+
+        r = cc1101_read_registers(spi1, spi_csn_gpio, TXBYTES, statuses, &value, 1);
+        r = cc1101_read_registers(spi1, spi_csn_gpio, MARCSTATE, statuses, &value, 1);
+
+        // Start the TX.
+        r = cc1101_command_strobe(spi1, spi_csn_gpio, STX, &status0);
+
+        // Wait for status to go back to IDLE
+        while (true) {
+            r = cc1101_read_registers(spi1, spi_csn_gpio, MARCSTATE, statuses, &value, 1);
+            if (r && ((value & 0x1f) == 0x1)) {
+                printf("IDLE!\n");
+                break;
+            }
+        }
 
         // read_serial();
-        sleep_ms(10);
+        sleep_ms(1 * 1000);
     }
 }
