@@ -119,6 +119,39 @@ C or Rust?
 
 I really want to use Rust but i'm not sure about software support.
 
+<https://reltech.substack.com/p/getting-started-with-rust-on-a-raspberry>
+<https://www.alexdwilson.dev/learning-in-public/running-rust-code-on-raspberry-pi-pico>
+
+<https://github.com/rp-rs/rp2040-project-template>
+<https://github.com/rp-rs/rp-hal>
+<https://github.com/rp-rs/rp-hal-boards/>
+
+Install rustup and make a personal toolchain.  :-/
+
+```
+# curl | sh craziness to install rustup
+$ rustup toolchain install stable
+$ rustup target add thumbv6m-none-eabi
+$ cargo install elf2uf2-rs --locked
+$ cargo install flip-link
+```
+
+Edit .cargo/config.toml to switch to the elf2uf2-rs runner.
+
+Reset/power-cycle the pico while holding the Bootsel button.  Mount the
+pico anywhere.
+
+`$ cargo run --release`
+
+`$ sudo mount /dev/sda1 /mnt -o umask=0 && cargo run; sync; sudo umount /mnt`
+
+`$ cargo doc --open`
+
+
+# To do
+
+console on usb?
+
 Unknown:
 
     Embassy?
