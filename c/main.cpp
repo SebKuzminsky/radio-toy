@@ -86,97 +86,6 @@ void read_serial(void) {
 }
 
 
-//
-// Read one byte from the register `addr`.  Return the status byte in
-// `status` and the register value in `value`.  Returns True on success,
-// False on failure.
-//
-
-bool read_register(spi_inst_t * spi, uint const csn_gpio, uint8_t const addr, uint8_t * status, uint8_t * value) {
-    int r;
-    uint8_t out = 0x80 | (addr & 0x3f);  // read register, no burst
-
-    gpio_put(csn_gpio, 0);
-    // printf("cc1101 SO pin is %d\n", gpio_get(spi_rx_gpio));
-
-    r = spi_write_read_blocking(spi, &out, status, sizeof(out));
-    if (r != 1) {
-        printf("failed spi register address write: %d\n", r);
-        return false;
-    }
-
-    r = spi_read_blocking(spi, 0x00, value, sizeof(*value));
-    if (r != 1) {
-        printf("failed spi read: %d\n", r);
-        return false;
-    }
-
-    gpio_put(csn_gpio, 1);
-
-    // printf("addr 0x%02x: 0x%02x (status=0x%02x)\n", addr, in, status);
-
-    return true;
-}
-
-
-//
-// Write one byte to the register `addr`.  Return the status byte in
-// `status`.  Returns True on success, False on failure.
-//
-
-bool write_register(spi_inst_t * spi, uint const csn_gpio, uint8_t const addr, uint8_t const value, uint8_t * status0, uint8_t * status1) {
-    int r;
-    uint8_t out = addr & 0x3f;  // write register, no burst
-
-    gpio_put(csn_gpio, 0);
-    // printf("cc1101 SO pin is %d\n", gpio_get(spi_rx_gpio));
-
-    r = spi_write_read_blocking(spi, &out, status0, sizeof(out));
-    if (r != 1) {
-        printf("failed spi register address write: %d\n", r);
-        return false;
-    }
-
-    r = spi_write_read_blocking(spi, &value, status1, sizeof(value));
-    if (r != 1) {
-        printf("failed spi register data write: %d\n", r);
-        return false;
-    }
-
-    gpio_put(csn_gpio, 1);
-
-    // printf("addr 0x%02x: 0x%02x (status=0x%02x)\n", addr, in, status);
-
-    return true;
-}
-
-
-//
-// Write a Command Strobe to the register `addr`.  Return the status byte in
-// `status`.  Returns True on success, False on failure.
-//
-
-bool command_strobe(spi_inst_t * spi, uint const csn_gpio, uint8_t const addr, uint8_t * status0) {
-    int r;
-    uint8_t out = addr & 0x3f;  // write register, no burst
-
-    gpio_put(csn_gpio, 0);
-    // printf("cc1101 SO pin is %d\n", gpio_get(spi_rx_gpio));
-
-    r = spi_write_read_blocking(spi, &out, status0, sizeof(out));
-    if (r != 1) {
-        printf("failed spi register address write: %d\n", r);
-        return false;
-    }
-
-    gpio_put(csn_gpio, 1);
-
-    // printf("addr 0x%02x: 0x%02x (status=0x%02x)\n", addr, in, status);
-
-    return true;
-}
-
-
 int main() {
     stdio_init_all();
     clocks_init();
@@ -219,20 +128,13 @@ int main() {
     uint8_t status0, status1;
     uint8_t value;
 
-    for (addr = 0x00; addr < 0x30; ++addr) {
-        r = read_register(spi1, spi_csn_gpio, addr, &status0, &value);
-        if (r) {
-            printf("addr 0x%02x: 0x%02x (status=0x%02x)\n", addr, value, status0);
-        } else {
-            printf("failed to read register 0x%02x\n", addr);
-        }
-        sleep_ms(1);
-    }
+    printf("registers at power on:\n");
+    cc1101_dump_registers(spi1, spi_csn_gpio);
 
     // Set modem to ASK/OOK
     addr = MDMCFG2;
     value = 0x30;
-    r = write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
     if (r) {
         printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
     } else {
@@ -246,7 +148,7 @@ int main() {
 
     addr = AGCCTRL2;
     value = 0x03;
-    r = write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
     if (r) {
         printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
     } else {
@@ -255,7 +157,7 @@ int main() {
 
     addr = AGCCTRL1;
     value = 0x00;
-    r = write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
     if (r) {
         printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
     } else {
@@ -264,7 +166,7 @@ int main() {
 
     addr = AGCCTRL0;
     value = 0x91;
-    r = write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
     if (r) {
         printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
     } else {
@@ -284,7 +186,7 @@ int main() {
 
     addr = FSCTRL1;
     value = 0x01;
-    r = write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
     if (r) {
         printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
     } else {
@@ -306,7 +208,7 @@ int main() {
 
     addr = FREND1;
     value = 0x56;
-    r = write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
     if (r) {
         printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
     } else {
@@ -315,7 +217,7 @@ int main() {
 
     addr = TEST2;
     value = 0x81;
-    r = write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
     if (r) {
         printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
     } else {
@@ -324,7 +226,7 @@ int main() {
 
     addr = TEST1;
     value = 0x35;
-    r = write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
     if (r) {
         printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
     } else {
@@ -333,12 +235,22 @@ int main() {
 
     addr = FIFOTHR;
     value = 0x47;
-    r = write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
     if (r) {
         printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
     } else {
         printf("failed to write register 0x%02x\n", addr);
     }
+
+    addr = FREND0;
+    value = 0x11;
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+    if (r) {
+        printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
+    } else {
+        printf("failed to write register 0x%02x\n", addr);
+    }
+
 
     // Set the base frequency.
     //
@@ -354,7 +266,7 @@ int main() {
 
     addr = FREQ2;
     value = 0x3f & (freq >> 16);
-    r = write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
     if (r) {
         printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
     } else {
@@ -363,7 +275,7 @@ int main() {
 
     addr = FREQ1;
     value = 0xff & (freq >> 8);
-    r = write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
     if (r) {
         printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
     } else {
@@ -372,7 +284,7 @@ int main() {
 
     addr = FREQ0;
     value = 0xff & freq;
-    r = write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
     if (r) {
         printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
     } else {
@@ -380,7 +292,7 @@ int main() {
     }
 
     addr = SCAL;
-    r = command_strobe(spi1, spi_csn_gpio, addr, &status0);
+    r = cc1101_command_strobe(spi1, spi_csn_gpio, addr, &status0);
     if (r) {
         printf("command strobe addr 0x%02x (status0=0x%02x)\n", addr, status0);
     } else {
@@ -389,7 +301,7 @@ int main() {
 
     addr = MCSM1;
     value = 0x32;
-    r = write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+    r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
     if (r) {
         printf("write addr 0x%02x=0x%02x (status0=0x%02x, status1=0x%02x)\n", addr, value, status0, status1);
     } else {
@@ -397,29 +309,32 @@ int main() {
     }
 
     addr = STX;
-    r = command_strobe(spi1, spi_csn_gpio, addr, &status0);
+    r = cc1101_command_strobe(spi1, spi_csn_gpio, addr, &status0);
     if (r) {
-        printf("command strobe addr 0x%02x (status0=0x%02x %s)\n", addr, status0, status_decode(status0));
+        printf("command strobe addr 0x%02x (status0=0x%02x %s)\n", addr, status0, cc1101_status_decode(status0));
     } else {
         printf("failed to write command strobe register 0x%02x\n", addr);
     }
 
     sleep_ms(2 * 1000);
 
+    printf("registers after configuration:\n");
+    cc1101_dump_registers(spi1, spi_csn_gpio);
+
     addr = FIFO;
     value = 0x00;
     for (;;) {
-        r = write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
+        r = cc1101_write_register(spi1, spi_csn_gpio, addr, value, &status0, &status1);
         if (r) {
             printf("write addr 0x%02x=0x%02x\n", addr, value);
-            printf("    status0=%s\n", status_decode(status0));
-            printf("    status1=%s\n", status_decode(status1));
+            printf("    status0=%s\n", cc1101_status_decode(status0));
+            printf("    status1=%s\n", cc1101_status_decode(status1));
         } else {
             printf("failed to write register 0x%02x\n", addr);
         }
         ++value;
 
         // read_serial();
-        sleep_ms(100);
+        sleep_ms(10);
     }
 }
