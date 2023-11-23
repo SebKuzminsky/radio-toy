@@ -92,7 +92,8 @@ int main() {
 
     stdio_init_all();
     clocks_init();
-    sleep_ms(3*1000);
+
+    sleep_ms(3*1000);  // wait for minicom to reconnect to the pico's serial port
 
 
     //
@@ -112,16 +113,16 @@ int main() {
     cc1101_set_panic_on_error(cc1101, true);
 
 
-    bool r;
-    uint8_t status0, status1;
-    uint8_t value;
-
     printf("registers at power on:\n");
     cc1101_dump_registers(cc1101);
 
     //
     // Configure the CC1101 for OOK at 433 MHz, 3 kbaud.
     //
+
+    bool r;
+    uint8_t status0, status1;
+    uint8_t value;
 
     // FIFOTHR:
     //     RX filter bandwidth > 325 kHz, FIFOTHR = 0x07
@@ -150,29 +151,9 @@ int main() {
 
     cc1101_write_register(cc1101, FSCTRL0, 0x00, &status0, &status1);
 
-    // Set the base frequency.
-    //
-    // f_carrier = (f_xosc/2**16) * FREQ
-    // 1/FREQ = (f_xosc/2**16) / f_carrier
-    // FREQ =  f_carrier / (f_xosc/2**16)
-    //
-    // FREQ = 433_920_000 / (26_000_000/2**16)
-    // FREQ = 1093745
-
-    uint32_t f_carrier = 433920000;
-    uint32_t f_xosc = 26000000;
-    uint32_t divisor = f_xosc / pow(2, 16);
-    uint32_t freq = f_carrier / divisor;
-
-    value = 0x3f & (freq >> 16);
-    cc1101_write_register(cc1101, FREQ2, value, &status0, &status1);
-
-    value = 0xff & (freq >> 8);
-    cc1101_write_register(cc1101, FREQ1, value, &status0, &status1);
-
-    value = 0xff & freq;
-    cc1101_write_register(cc1101, FREQ0, value, &status0, &status1);
-
+    // Set the carrier frequency to 433.920 MHz.
+    cc1101_set_base_frequency(cc1101, 433920000);
+    // cc1101_set_base_frequency(cc1101, 400 * 1000 * 1000);
 
     // Input bandwidth, ~203 kHz
     cc1101_write_register(cc1101, MDMCFG4, 0x8c, &status0, &status1);

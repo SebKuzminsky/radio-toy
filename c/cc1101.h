@@ -509,4 +509,46 @@ static void cc1101_dump_registers(cc1101_t * cc1101) {
 }
 
 
+//
+// Set the "base frequency" aka "carrier frequency".
+//
+// Returns true if all went well, false if there was a problem (unless
+// panic_on_error is set, in which case it panics if there's a problem).
+//
+
+static bool cc1101_set_base_frequency(cc1101_t * cc1101, uint32_t frequency_hz) {
+    // f_carrier = (f_xosc/2**16) * FREQ
+    // 1/FREQ = (f_xosc/2**16) / f_carrier
+    //
+    // FREQ =  f_carrier / (f_xosc/2**16)
+    //
+    // FREQ = 433_920_000 / (26_000_000/2**16)
+    // FREQ = 1093745
+
+    constexpr uint32_t f_xosc = 26 * 1000 * 1000;
+    constexpr uint32_t divisor = f_xosc / pow(2, 16);
+    uint32_t const freq = frequency_hz / divisor;
+
+    int r;
+    uint8_t value;
+    uint8_t status0, status1;
+
+    value = 0x3f & (freq >> 16);
+    r = cc1101_write_register(cc1101, FREQ2, value, &status0, &status1);
+    if (!r) {
+        return false;
+    }
+
+    value = 0xff & (freq >> 8);
+    r = cc1101_write_register(cc1101, FREQ1, value, &status0, &status1);
+    if (!r) {
+        return false;
+    }
+
+    value = 0xff & freq;
+    r = cc1101_write_register(cc1101, FREQ0, value, &status0, &status1);
+    return r;
+}
+
+
 #endif // __CC1101_H
