@@ -1,8 +1,9 @@
 #ifndef __CC1101_H
 #define __CC1101_H
 
-
+#include "pico.h"
 #include "hardware/spi.h"
+#include "hardware/timer.h"
 
 
 // Register addresses
@@ -509,6 +510,21 @@ static void cc1101_dump_registers(cc1101_t * cc1101) {
 }
 
 
+static void cc1101_wait_for_idle(cc1101_t * cc1101) {
+    // Wait for status to go back to IDLE
+    while (true) {
+        int r;
+        uint8_t statuses[2];
+        uint8_t value;
+        r = cc1101_read_registers(cc1101, MARCSTATE, statuses, &value, 1);
+        if (r && ((value & 0x1f) == 0x1)) {
+            return;
+        }
+        sleep_us(100);
+    }
+}
+
+
 //
 // Set the "base frequency" aka "carrier frequency".
 //
@@ -547,7 +563,20 @@ static bool cc1101_set_base_frequency(cc1101_t * cc1101, uint32_t frequency_hz) 
 
     value = 0xff & freq;
     r = cc1101_write_register(cc1101, FREQ0, value, &status0, &status1);
-    return r;
+    if (!r) {
+        return false;
+    }
+
+    cc1101_wait_for_idle(cc1101);
+
+    // Calibrate the frequency synthesizer.  We're in IDLE Mode so this
+    // is allowed.
+    r = cc1101_command_strobe(cc1101, SCAL, &status0);
+    if (!r) {
+        return false;
+    }
+
+    return true;
 }
 
 

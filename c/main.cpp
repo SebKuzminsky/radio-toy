@@ -16,7 +16,7 @@
 uint const debug_gpio = 1;
 
 
-bool debug_flag = false;
+bool debug_flag = true;
 
 #define debug(fmt, ...) \
     do { if (debug_flag) printf(fmt, ## __VA_ARGS__); } while (0)
@@ -25,10 +25,10 @@ bool debug_flag = false;
 // Process commands received from the computer via USB serial.
 // Valid input strings:
 //     'txN': N is a 32-bit hex string.  Transmit the hex string.
-void process_input(char const * in) {
+void process_input(cc1101_t * cc1101, char const * in) {
     if (strncasecmp("tx", in, 2) == 0) {
-#if 0
-        uint32_t data = 0;
+        uint32_t data;
+        uint8_t status0, status1;
         int r;
         r = sscanf(&in[2], "%lx", &data);
         if (r != 1) {
@@ -36,13 +36,25 @@ void process_input(char const * in) {
             return;
         }
         debug("tx 0x%08lx\n", data);
+
+        cc1101_write_register(cc1101, FIFO, 0xff & (data >> 24), &status0, &status1);
+        cc1101_write_register(cc1101, FIFO, 0xff & (data >> 16), &status0, &status1);
+        cc1101_write_register(cc1101, FIFO, 0xff & (data >> 8), &status0, &status1);
+        cc1101_write_register(cc1101, FIFO, 0xff & data, &status0, &status1);
+
+        // Start the TX.
+        cc1101_command_strobe(cc1101, STX, &status0);
+
+        cc1101_wait_for_idle(cc1101);
+
+#if 0
         gpio_put(debug_gpio, 1);
         ook_send(data);
         gpio_put(debug_gpio, 0);
 #endif
 
-    } else if (strncasecmp("us-per-bit", in, 10) == 0) {
 #if 0
+    } else if (strncasecmp("us-per-bit", in, 10) == 0) {
         uint us_per_bit = 0;
         int r;
         r = sscanf(&in[10], "%u", &us_per_bit);
@@ -54,11 +66,20 @@ void process_input(char const * in) {
         ook_start(us_per_bit);
 #endif
 
+    } else if (strncasecmp("freq", in, 4) == 0) {
+        uint32_t freq_hz;
+        int r;
+        r = sscanf(&in[4], "%lu", &freq_hz);
+        if (r != 1) {
+            printf("failed to parse '%s'\n", in);
+            return;
+        }
+        debug("freq %lu\n", freq_hz);
+        cc1101_set_base_frequency(cc1101, freq_hz);
+
     } else if (strncasecmp("debug", in, 5) == 0) {
-#if 0
         debug_flag = !debug_flag;
         debug("debug is %d\n", debug_flag);
-#endif
 
     } else {
         printf("unknown input '%s'\n", in);
@@ -66,15 +87,15 @@ void process_input(char const * in) {
 }
 
 
-void read_serial(void) {
-    static char in[16];
+void read_serial(cc1101_t * cc1101) {
+    static char in[100];
     static int index = 0;
 
     // Block waiting for an input character.
     in[index] = getchar();
     if (isspace(in[index])) {
         in[index] = '\0';
-        process_input(in);
+        process_input(cc1101, in);
         index = 0;
         return;
     }
@@ -129,7 +150,7 @@ int main() {
     //     RX filter bandwidth ≤ 325 kHz, FIFOTHR = 0x47
     cc1101_write_register(cc1101, FIFOTHR, 0x40, &status0, &status1);
 
-    cc1101_write_register(cc1101, PKTLEN, 0x10, &status0, &status1);
+    cc1101_write_register(cc1101, PKTLEN, 0x04, &status0, &status1);
 
     cc1101_write_register(cc1101, PKTCTRL1, 0x04, &status0, &status1);
 
@@ -248,6 +269,12 @@ int main() {
         }
     }
 
+    // Ok, now we're ready.
+    while(1) {
+        read_serial(cc1101);
+    }
+
+#if 0
     uint8_t num = 0x00;
     for (;;) {
         for (int i = 0; i < 0x10; ++i) {
@@ -279,7 +306,7 @@ int main() {
             }
         }
 
-        // read_serial();
         sleep_ms(1 * 1000);
     }
+#endif
 }
