@@ -72,6 +72,19 @@ void process_input_line(cc1101_t * cc1101, char * in) {
         ook_start(us_per_bit);
 #endif
 
+    } else if (strcasecmp("tx-preamble-bytes", cmd) == 0) {
+        debug("got tx-preamble-bytes\n");
+        uint32_t num_preamble_bytes;
+        int r;
+        char * token = strtok(NULL, delim);
+        r = sscanf(token, "%lu", &num_preamble_bytes);
+        if (r != 1) {
+            printf("failed to parse '%s', r=%d\n", in, r);
+            return;
+        }
+        debug("tx-preamble-bytes %lu\n", num_preamble_bytes);
+        cc1101_set_tx_preamble_bytes(cc1101, num_preamble_bytes);
+
     } else if (strcasecmp("baud", cmd) == 0) {
         debug("got baud\n");
         uint32_t baud;

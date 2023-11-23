@@ -602,4 +602,34 @@ static bool cc1101_set_baudrate(cc1101_t * cc1101, uint32_t baudrate) {
 }
 
 
+static bool cc1101_set_tx_preamble_bytes(cc1101_t * cc1101, int num_preamble_bytes) {
+    uint8_t value, status0, status1;
+    bool r;
+
+    r = cc1101_read_register(cc1101, MDMCFG1, &status0, &value);
+    if (!r) {
+        return false;
+    }
+
+    uint8_t fec_en = value & 0x80;
+    uint8_t chanspc_e = value & 0x03;
+
+    uint8_t num_preamble;
+    if (num_preamble_bytes <= 2) num_preamble = 0x00 << 4;
+    else if (num_preamble_bytes <= 3) num_preamble = 0x01 << 4;
+    else if (num_preamble_bytes <= 4) num_preamble = 0x02 << 4;
+    else if (num_preamble_bytes <= 6) num_preamble = 0x03 << 4;
+    else if (num_preamble_bytes <= 8) num_preamble = 0x04 << 4;
+    else if (num_preamble_bytes <= 12) num_preamble = 0x05 << 4;
+    else if (num_preamble_bytes <= 16) num_preamble = 0x06 << 4;
+    else num_preamble = 0x07 << 4;
+
+    cc1101_debug(cc1101, "%s: num_preamble_bytes=%d, num_preamble=0x%02x\n", __FUNCTION__, num_preamble_bytes, num_preamble);
+
+    value = fec_en | num_preamble | chanspc_e;
+    r = cc1101_write_register(cc1101, MDMCFG1, value, &status0, &status1);
+    return r;
+}
+
+
 #endif // __CC1101_H
