@@ -90,6 +90,7 @@ void process_input(cc1101_t * cc1101, char const * in) {
 
     } else if (strncasecmp("debug", in, 5) == 0) {
         debug_flag = !debug_flag;
+        cc1101_set_debug(cc1101, debug_flag);
         debug("debug is %d\n", debug_flag);
 
     } else {
@@ -125,7 +126,7 @@ int main() {
     stdio_init_all();
     clocks_init();
 
-    sleep_ms(3*1000);  // wait for minicom to reconnect to the pico's serial port
+    // sleep_ms(3*1000);  // wait for minicom to reconnect to the pico's serial port
 
 
     //
@@ -264,19 +265,12 @@ int main() {
     printf("registers after configuration:\n");
     cc1101_dump_registers(cc1101);
 
-    sleep_ms(2 * 1000);
+    // sleep_ms(2 * 1000);
 
     // Calibrate the frequency synthesizer.  We're in IDLE Mode so this
     // is allowed.
     cc1101_command_strobe(cc1101, SCAL, &status0);
-
-    // Wait for status to go back to IDLE
-    while (true) {
-        r = cc1101_read_registers(cc1101, MARCSTATE, statuses, &value, 1);
-        if (r && ((value & 0x1f) == 0x1)) {
-            break;
-        }
-    }
+    cc1101_wait_for_idle(cc1101);
 
     // Ok, now we're ready.
     while(1) {
