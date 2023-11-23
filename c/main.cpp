@@ -22,15 +22,21 @@ bool debug_flag = true;
     do { if (debug_flag) printf(fmt, ## __VA_ARGS__); } while (0)
 
 
-// Process commands received from the computer via USB serial.
-// Valid input strings:
-//     'txN': N is a 32-bit hex string.  Transmit the hex string.
-void process_input(cc1101_t * cc1101, char const * in) {
-    if (strncasecmp("tx", in, 2) == 0) {
+// Process command lines received from the computer via USB serial.
+// Command lines consist of one or more space-delimited tokens.
+void process_input_line(cc1101_t * cc1101, char * in) {
+    debug("processing line '%s'\n", in);
+
+    char const * delim = " \t";
+    char * cmd = strtok(in, delim);
+
+    if (strcasecmp("tx", cmd) == 0) {
+        debug("got 'tx'\n");
         uint32_t data;
         uint8_t status0, status1;
         int r;
-        r = sscanf(&in[2], "%lx", &data);
+        char * token = strtok(NULL, delim);
+        r = sscanf(token, "%lx", &data);
         if (r != 1) {
             printf("failed to parse '%s'\n", in);
             return;
@@ -66,10 +72,12 @@ void process_input(cc1101_t * cc1101, char const * in) {
         ook_start(us_per_bit);
 #endif
 
-    } else if (strncasecmp("baud", in, 4) == 0) {
+    } else if (strcasecmp("baud", cmd) == 0) {
+        debug("got baud\n");
         uint32_t baud;
         int r;
-        r = sscanf(&in[4], "%lu", &baud);
+        char * token = strtok(NULL, delim);
+        r = sscanf(token, "%lu", &baud);
         if (r != 1) {
             printf("failed to parse '%s'\n", in);
             return;
@@ -77,10 +85,12 @@ void process_input(cc1101_t * cc1101, char const * in) {
         debug("baud %lu\n", baud);
         cc1101_set_baudrate(cc1101, baud);
 
-    } else if (strncasecmp("freq", in, 4) == 0) {
+    } else if (strcasecmp("freq", cmd) == 0) {
+        debug("got freq\n");
         uint32_t freq_hz;
         int r;
-        r = sscanf(&in[4], "%lu", &freq_hz);
+        char * token = strtok(NULL, delim);
+        r = sscanf(token, "%lu", &freq_hz);
         if (r != 1) {
             printf("failed to parse '%s'\n", in);
             return;
@@ -88,7 +98,8 @@ void process_input(cc1101_t * cc1101, char const * in) {
         debug("freq %lu\n", freq_hz);
         cc1101_set_base_frequency(cc1101, freq_hz);
 
-    } else if (strncasecmp("debug", in, 5) == 0) {
+    } else if (strcasecmp("debug", cmd) == 0) {
+        debug("got debug\n");
         debug_flag = !debug_flag;
         cc1101_set_debug(cc1101, debug_flag);
         debug("debug is %d\n", debug_flag);
@@ -105,9 +116,9 @@ void read_serial(cc1101_t * cc1101) {
 
     // Block waiting for an input character.
     in[index] = getchar();
-    if (isspace(in[index])) {
+    if (in[index] == '\n' || in[index] == '\r') {
         in[index] = '\0';
-        process_input(cc1101, in);
+        process_input_line(cc1101, in);
         index = 0;
         return;
     }
@@ -153,7 +164,6 @@ int main() {
     // Configure the CC1101 for OOK at 433 MHz, 3 kbaud.
     //
 
-    bool r;
     uint8_t status0, status1;
     uint8_t value;
 
