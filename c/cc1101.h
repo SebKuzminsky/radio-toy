@@ -580,4 +580,26 @@ static bool cc1101_set_base_frequency(cc1101_t * cc1101, uint32_t frequency_hz) 
 }
 
 
+static bool cc1101_set_baudrate(cc1101_t * cc1101, uint32_t baudrate) {
+    // FIXME: The exponent is in MDMCFG4, it defaults to 12 so for now
+    // we assume that's what it is.  That limits the baudrate range to
+    // about 500 kHz to 105 kHz.
+    constexpr uint8_t exponent = 12;
+
+    constexpr uint32_t f_xosc = 26 * 1000 * 1000;
+
+    // R_data = (256 + DRATE_M) * 2**DRATE_E * f_xosc / 2**28
+    // 2**28 * R_data = (256 + DRATE_M) * 2**DRATE_E * f_xosc
+    // (2**28 * R_data) / (2**DRATE_E * f_xosc) = 256 + DRATE_M
+    // DRATE_M = (2**28 * R_data) / (2**DRATE_E * f_xosc) - 256 
+
+    uint8_t drate_m = ((pow(2, 28) * baudrate) / (pow(2, exponent) * f_xosc)) - 256;
+
+    cc1101_debug(cc1101, "%s baudrate=%lu, drate_m=%u\n", __FUNCTION__, baudrate, drate_m);
+
+    uint8_t status0, status1;
+    return cc1101_write_register(cc1101, MDMCFG3, drate_m, &status0, &status1);
+}
+
+
 #endif // __CC1101_H

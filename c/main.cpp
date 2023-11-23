@@ -66,6 +66,17 @@ void process_input(cc1101_t * cc1101, char const * in) {
         ook_start(us_per_bit);
 #endif
 
+    } else if (strncasecmp("baud", in, 4) == 0) {
+        uint32_t baud;
+        int r;
+        r = sscanf(&in[4], "%lu", &baud);
+        if (r != 1) {
+            printf("failed to parse '%s'\n", in);
+            return;
+        }
+        debug("baud %lu\n", baud);
+        cc1101_set_baudrate(cc1101, baud);
+
     } else if (strncasecmp("freq", in, 4) == 0) {
         uint32_t freq_hz;
         int r;
@@ -174,13 +185,11 @@ int main() {
 
     // Set the carrier frequency to 433.920 MHz.
     cc1101_set_base_frequency(cc1101, 433920000);
-    // cc1101_set_base_frequency(cc1101, 400 * 1000 * 1000);
 
     // Input bandwidth, ~203 kHz
     cc1101_write_register(cc1101, MDMCFG4, 0x8c, &status0, &status1);
 
-    // Data rate, ~115.2 kbaud
-    cc1101_write_register(cc1101, MDMCFG3, 0x34, &status0, &status1);
+    cc1101_set_baudrate(cc1101, 115200);
 
     // Set modem to ASK/OOK
     // 0x30: ook, no preamble
