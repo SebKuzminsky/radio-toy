@@ -637,23 +637,101 @@ static bool cc1101_set_base_frequency(cc1101_t * cc1101, uint32_t frequency_hz) 
 
 
 static bool cc1101_set_baudrate(cc1101_t * cc1101, uint32_t baudrate) {
-    // FIXME: The exponent is in MDMCFG4, it defaults to 12 so for now
-    // we assume that's what it is.  That limits the baudrate range to
-    // about 500 kHz to 105 kHz.
-    constexpr uint8_t exponent = 12;
+    bool r;
+    uint8_t value;
+
+    //
+    // We need to set DRATE_M and DRATE_E in the CC1101 according to
+    // this formula (R_data is the requested baudrate):
+    //
+    //     R_data = (256 + DRATE_M) * 2**DRATE_E * f_xosc / 2**28
+    //
+    // Solving for DRATE_M:
+    //
+    //     2**28 * R_data = (256 + DRATE_M) * 2**DRATE_E * f_xosc
+    //
+    //     (2**28 * R_data) / (2**DRATE_E * f_xosc) = 256 + DRATE_M
+    //
+    //     DRATE_M = (2**28 * R_data) / (2**DRATE_E * f_xosc) - 256
+    //
+    // DRATE_M is an 8 bit value (0-255).
+    //
+    // DRATE_E is a 4 bit value (0-15).
+    //
+    // For a given DRATE_E, the range of available baudrates are:
+    //
+    // DRATE_E | min baudrate | max baudrate
+    // --------+--------------+-------------
+    //       0 |           25 |      49
+    //       1 |           49 |      98
+    //       2 |           99 |     197
+    //       3 |          198 |     395
+    //       4 |          396 |     791
+    //       5 |          793 |    1583
+    //       6 |         1586 |    3167
+    //       7 |         3173 |    6335
+    //       8 |         6347 |   12670
+    //       9 |        12695 |   25341
+    //      10 |        25390 |   50682
+    //      11 |        50781 |  101364
+    //      12 |       101562 |  202728
+    //      13 |       203125 |  405456
+    //      14 |       406250 |  810913
+    //      15 |       812500 | 1621826
+    // --------+--------------+-------------
+    //
+    // Pick a value for DRATE_E based on the requested baudrate, then
+    // compute DRATE_M.
+    //
+
+    uint8_t drate_e;
+
+    if (baudrate < 25) {
+        printf("%s: baudrate %lu too low\n", __FUNCTION__, baudrate);
+        return false;
+    }
+    else if (baudrate < 49) drate_e = 0;
+    else if (baudrate < 98) drate_e = 1;
+    else if (baudrate < 197) drate_e = 2;
+    else if (baudrate < 395) drate_e = 3;
+    else if (baudrate < 791) drate_e = 4;
+    else if (baudrate < 1583) drate_e = 5;
+    else if (baudrate < 3167) drate_e = 6;
+    else if (baudrate < 6335) drate_e = 7;
+    else if (baudrate < 12670) drate_e = 8;
+    else if (baudrate < 25341) drate_e = 9;
+    else if (baudrate < 50682) drate_e = 10;
+    else if (baudrate < 101364) drate_e = 11;
+    else if (baudrate < 202728) drate_e = 12;
+    else if (baudrate < 405456) drate_e = 13;
+    else if (baudrate < 810913) drate_e = 14;
+    else if (baudrate < 1621826) drate_e = 15;
+    else {
+        printf("%s: baudrate %lu too high\n", __FUNCTION__, baudrate);
+        return false;
+    }
 
     constexpr uint32_t f_xosc = 26 * 1000 * 1000;
 
-    // R_data = (256 + DRATE_M) * 2**DRATE_E * f_xosc / 2**28
-    // 2**28 * R_data = (256 + DRATE_M) * 2**DRATE_E * f_xosc
-    // (2**28 * R_data) / (2**DRATE_E * f_xosc) = 256 + DRATE_M
-    // DRATE_M = (2**28 * R_data) / (2**DRATE_E * f_xosc) - 256 
+    uint8_t drate_m = ((pow(2, 28) * baudrate) / (pow(2, drate_e) * f_xosc)) - 256;
 
-    uint8_t drate_m = ((pow(2, 28) * baudrate) / (pow(2, exponent) * f_xosc)) - 256;
+    cc1101_debug(cc1101, "%s baudrate=%lu, drate_m=%u, drate_e=%u\n", __FUNCTION__, baudrate, drate_m, drate_e);
 
-    cc1101_debug(cc1101, "%s baudrate=%lu, drate_m=%u\n", __FUNCTION__, baudrate, drate_m);
+    // FIXME: for now we fix the input bandwidth at the default, 200 kHz
+    uint8_t chanbw_e = 2;
+    uint8_t chanbw_m = 0;
+    value = (chanbw_e << 6) | (chanbw_m << 4) | drate_e;
+    r = cc1101_write_register(cc1101, MDMCFG4, value);
+    if (!r) {
+        return false;
+    }
 
-    return cc1101_write_register(cc1101, MDMCFG3, drate_m);
+    r = cc1101_write_register(cc1101, MDMCFG3, drate_m);
+    if (!r) {
+        return false;
+    }
+
+    return true;
 }
 
 
