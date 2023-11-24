@@ -314,6 +314,17 @@ static bool cc1101_read_register(cc1101_t * cc1101, uint8_t const addr, uint8_t 
 
 
 //
+// Read one byte from the register `addr`.  Return the register value in
+// `value`.  Returns True on success, False on failure.
+//
+
+static bool cc1101_read_register(cc1101_t * cc1101, uint8_t const addr, uint8_t * value) {
+    uint8_t _status;
+    return cc1101_read_register(cc1101, addr, &_status, value);
+}
+
+
+//
 // Read `count` bytes in burst mode from the register `addr`.  Return the
 // one status byte in `status` and the `count` register values in `value`.
 // Returns True on success, False on failure.
@@ -364,6 +375,18 @@ static bool cc1101_read_registers(cc1101_t * cc1101, uint8_t const addr, uint8_t
 
 
 //
+// Read `count` bytes in burst mode from the register `addr`.  Return the
+// `count` register values in `value`.  Returns True on success, False
+// on failure.
+//
+
+static bool cc1101_read_registers(cc1101_t * cc1101, uint8_t const addr, uint8_t * value, size_t count) {
+    uint8_t _status;
+    return cc1101_read_registers(cc1101, addr, &_status, value, count);
+}
+
+
+//
 // Write one byte to the register `addr`.  Return the status byte in
 // `status`.  Returns True on success, False on failure.
 //
@@ -399,6 +422,17 @@ static bool cc1101_write_register(cc1101_t * cc1101, uint8_t const addr, uint8_t
     cc1101_debug(cc1101, "write addr %s(0x%02x)=0x%02x (status=%s)\n", cc1101_register_name[addr], addr, value, cc1101_status_decode(*status0));
 
     return true;
+}
+
+
+//
+// Write one byte from `value` to the register `addr`.  Returns True on
+// success, False on failure.
+//
+
+static bool cc1101_write_register(cc1101_t * cc1101, uint8_t const addr, uint8_t const value) {
+    uint8_t _status0, _status1;
+    return cc1101_write_register(cc1101, addr, value, &_status0, &_status1);
 }
 
 
@@ -453,6 +487,17 @@ static bool cc1101_write_registers(cc1101_t * cc1101, uint8_t const addr, uint8_
 
 
 //
+// Write `count` bytes from `value` to the register `addr`.  Returns True
+// on success, False on failure.
+//
+
+static bool cc1101_write_registers(cc1101_t * cc1101, uint8_t const addr, uint8_t const * value, size_t count) {
+    uint8_t _status[count+1];
+    return cc1101_write_registers(cc1101, addr, value, _status, count);
+}
+
+
+//
 // Write a Command Strobe to the register `addr`.  Return the status byte in
 // `status`.  Returns True on success, False on failure.
 //
@@ -478,6 +523,17 @@ static bool cc1101_command_strobe(cc1101_t * cc1101, uint8_t const addr, uint8_t
     cc1101_debug(cc1101, "command strobe %s(0x%02x) (status=%s)\n", cc1101_strobe_name[addr-0x30], addr, cc1101_status_decode(*status));
 
     return true;
+}
+
+
+//
+// Write a Command Strobe to the register `addr`.  Returns True on
+// success, False on failure.
+//
+
+static bool cc1101_command_strobe(cc1101_t * cc1101, uint8_t const addr) {
+    uint8_t _status;
+    return cc1101_command_strobe(cc1101, addr, &_status);
 }
 
 
@@ -511,12 +567,13 @@ static void cc1101_dump_registers(cc1101_t * cc1101) {
 
 
 static void cc1101_wait_for_idle(cc1101_t * cc1101) {
-    // Wait for status to go back to IDLE
+    // Wait for status to go back to IDLE.  This has to be a burst read,
+    // even though we're only reading one byte, because the MARCSTATE
+    // register is one of the special ones above address 0x30.
     while (true) {
         int r;
-        uint8_t statuses[2];
         uint8_t value;
-        r = cc1101_read_registers(cc1101, MARCSTATE, statuses, &value, 1);
+        r = cc1101_read_registers(cc1101, MARCSTATE, &value, 1);
         if (r && ((value & 0x1f) == 0x1)) {
             return;
         }
@@ -547,22 +604,21 @@ static bool cc1101_set_base_frequency(cc1101_t * cc1101, uint32_t frequency_hz) 
 
     int r;
     uint8_t value;
-    uint8_t status0, status1;
 
     value = 0x3f & (freq >> 16);
-    r = cc1101_write_register(cc1101, FREQ2, value, &status0, &status1);
+    r = cc1101_write_register(cc1101, FREQ2, value);
     if (!r) {
         return false;
     }
 
     value = 0xff & (freq >> 8);
-    r = cc1101_write_register(cc1101, FREQ1, value, &status0, &status1);
+    r = cc1101_write_register(cc1101, FREQ1, value);
     if (!r) {
         return false;
     }
 
     value = 0xff & freq;
-    r = cc1101_write_register(cc1101, FREQ0, value, &status0, &status1);
+    r = cc1101_write_register(cc1101, FREQ0, value);
     if (!r) {
         return false;
     }
@@ -571,7 +627,7 @@ static bool cc1101_set_base_frequency(cc1101_t * cc1101, uint32_t frequency_hz) 
 
     // Calibrate the frequency synthesizer.  We're in IDLE Mode so this
     // is allowed.
-    r = cc1101_command_strobe(cc1101, SCAL, &status0);
+    r = cc1101_command_strobe(cc1101, SCAL);
     if (!r) {
         return false;
     }
@@ -597,16 +653,15 @@ static bool cc1101_set_baudrate(cc1101_t * cc1101, uint32_t baudrate) {
 
     cc1101_debug(cc1101, "%s baudrate=%lu, drate_m=%u\n", __FUNCTION__, baudrate, drate_m);
 
-    uint8_t status0, status1;
-    return cc1101_write_register(cc1101, MDMCFG3, drate_m, &status0, &status1);
+    return cc1101_write_register(cc1101, MDMCFG3, drate_m);
 }
 
 
 static bool cc1101_set_tx_preamble_bytes(cc1101_t * cc1101, int num_preamble_bytes) {
-    uint8_t value, status0, status1;
+    uint8_t value;
     bool r;
 
-    r = cc1101_read_register(cc1101, MDMCFG1, &status0, &value);
+    r = cc1101_read_register(cc1101, MDMCFG1, &value);
     if (!r) {
         return false;
     }
@@ -627,7 +682,7 @@ static bool cc1101_set_tx_preamble_bytes(cc1101_t * cc1101, int num_preamble_byt
     cc1101_debug(cc1101, "%s: num_preamble_bytes=%d, num_preamble=0x%02x\n", __FUNCTION__, num_preamble_bytes, num_preamble);
 
     value = fec_en | num_preamble | chanspc_e;
-    r = cc1101_write_register(cc1101, MDMCFG1, value, &status0, &status1);
+    r = cc1101_write_register(cc1101, MDMCFG1, value);
     return r;
 }
 

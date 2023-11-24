@@ -33,7 +33,6 @@ void process_input_line(cc1101_t * cc1101, char * in) {
     if (strcasecmp("tx", cmd) == 0) {
         debug("got 'tx'\n");
         uint32_t data;
-        uint8_t status0, status1;
         int r;
         char * token = strtok(NULL, delim);
         r = sscanf(token, "%lx", &data);
@@ -43,13 +42,13 @@ void process_input_line(cc1101_t * cc1101, char * in) {
         }
         debug("tx 0x%08lx\n", data);
 
-        cc1101_write_register(cc1101, FIFO, 0xff & (data >> 24), &status0, &status1);
-        cc1101_write_register(cc1101, FIFO, 0xff & (data >> 16), &status0, &status1);
-        cc1101_write_register(cc1101, FIFO, 0xff & (data >> 8), &status0, &status1);
-        cc1101_write_register(cc1101, FIFO, 0xff & data, &status0, &status1);
+        cc1101_write_register(cc1101, FIFO, 0xff & (data >> 24));
+        cc1101_write_register(cc1101, FIFO, 0xff & (data >> 16));
+        cc1101_write_register(cc1101, FIFO, 0xff & (data >> 8));
+        cc1101_write_register(cc1101, FIFO, 0xff & data);
 
         // Start the TX.
-        cc1101_command_strobe(cc1101, STX, &status0);
+        cc1101_command_strobe(cc1101, STX);
 
         cc1101_wait_for_idle(cc1101);
 
@@ -177,66 +176,65 @@ int main() {
     // Configure the CC1101 for OOK at 433 MHz, 3 kbaud.
     //
 
-    uint8_t status0, status1;
     uint8_t value;
 
     // FIFOTHR:
     //     RX filter bandwidth > 325 kHz, FIFOTHR = 0x07
     //     RX filter bandwidth ≤ 325 kHz, FIFOTHR = 0x47
-    cc1101_write_register(cc1101, FIFOTHR, 0x40, &status0, &status1);
+    cc1101_write_register(cc1101, FIFOTHR, 0x40);
 
-    cc1101_write_register(cc1101, PKTLEN, 0x04, &status0, &status1);
+    cc1101_write_register(cc1101, PKTLEN, 0x04);
 
-    cc1101_write_register(cc1101, PKTCTRL1, 0x04, &status0, &status1);
+    cc1101_write_register(cc1101, PKTCTRL1, 0x04);
 
     // Packet format:
     // * whitening off
     // * use FIFOs for Rx and Tx
     // * disable CRC calculation on Tx and CRC check on Rx
     // * fixed packet length specified by PKTLEN register
-    cc1101_write_register(cc1101, PKTCTRL0, 0x00, &status0, &status1);
+    cc1101_write_register(cc1101, PKTCTRL0, 0x00);
 
-    cc1101_write_register(cc1101, ADDR, 0x00, &status0, &status1);
+    cc1101_write_register(cc1101, ADDR, 0x00);
 
-    cc1101_write_register(cc1101, CHANNR, 0x00, &status0, &status1);
+    cc1101_write_register(cc1101, CHANNR, 0x00);
 
     // Set IF (intermediate frequency).
     // FIXME
 
-    cc1101_write_register(cc1101, FSCTRL1, 0x0c, &status0, &status1);
+    cc1101_write_register(cc1101, FSCTRL1, 0x0c);
 
-    cc1101_write_register(cc1101, FSCTRL0, 0x00, &status0, &status1);
+    cc1101_write_register(cc1101, FSCTRL0, 0x00);
 
     // Set the carrier frequency to 433.920 MHz.
     cc1101_set_base_frequency(cc1101, 433920000);
 
     // Input bandwidth, ~203 kHz
-    cc1101_write_register(cc1101, MDMCFG4, 0x8c, &status0, &status1);
+    cc1101_write_register(cc1101, MDMCFG4, 0x8c);
 
     cc1101_set_baudrate(cc1101, 115200);
 
     // Set modem to ASK/OOK
     // 0x30: ook, no preamble
     // 0x33: ook, preamble
-    cc1101_write_register(cc1101, MDMCFG2, 0x33, &status0, &status1);
+    cc1101_write_register(cc1101, MDMCFG2, 0x33);
 
     // Disable FEC, 2 preamble bytes
-    cc1101_write_register(cc1101, MDMCFG1, 0x22, &status0, &status1);
+    cc1101_write_register(cc1101, MDMCFG1, 0x22);
 
-    cc1101_write_register(cc1101, MDMCFG0, 0xf8, &status0, &status1);
+    cc1101_write_register(cc1101, MDMCFG0, 0xf8);
 
     // Not used for OOK
-    cc1101_write_register(cc1101, DEVIATN, 0x62, &status0, &status1);
+    cc1101_write_register(cc1101, DEVIATN, 0x62);
 
     // Main Radio Control State Machine Configuration 1:
     // * CCA_MODE=3 ??
     // * RXOFF_MODE=0 (go to IDLE after receiving a packet)
     // * TXOFF_MODE=0 (go to IDLE after transmitting a packet)
-    cc1101_write_register(cc1101, MCSM1, 0x30, &status0, &status1);
+    cc1101_write_register(cc1101, MCSM1, 0x30);
 
     // Main Radio Control State Machine Configuration 0:
     // * FS_AUTOCAL=3 (calibrate every 4th time when going from RX or TX to IDLE)
-    cc1101_write_register(cc1101, MCSM0, 0x30, &status0, &status1);
+    cc1101_write_register(cc1101, MCSM0, 0x30);
 
 
     // Configure for OOK per Design Note DN022.
@@ -244,14 +242,14 @@ int main() {
     // * AGCCTRL1 = 0x00
     // * AGCCTRL0 = 0x91 or 0x92
 
-    cc1101_write_register(cc1101, AGCCTRL2, 0x03, &status0, &status1);
-    cc1101_write_register(cc1101, AGCCTRL1, 0x00, &status0, &status1);
-    cc1101_write_register(cc1101, AGCCTRL0, 0x91, &status0, &status1);
+    cc1101_write_register(cc1101, AGCCTRL2, 0x03);
+    cc1101_write_register(cc1101, AGCCTRL1, 0x00);
+    cc1101_write_register(cc1101, AGCCTRL0, 0x91);
 
-    cc1101_write_register(cc1101, FSCAL3, 0xea, &status0, &status1);
-    cc1101_write_register(cc1101, FSCAL2, 0x2a, &status0, &status1);
-    cc1101_write_register(cc1101, FSCAL1, 0x00, &status0, &status1);
-    cc1101_write_register(cc1101, FSCAL0, 0x1f, &status0, &status1);
+    cc1101_write_register(cc1101, FSCAL3, 0xea);
+    cc1101_write_register(cc1101, FSCAL2, 0x2a);
+    cc1101_write_register(cc1101, FSCAL1, 0x00);
+    cc1101_write_register(cc1101, FSCAL0, 0x1f);
 
     // FREND1:
     //     RX filter bandwidth > 101 kHz, FREND1 = 0xB6
@@ -263,16 +261,16 @@ int main() {
     //     RX filter bandwidth > 325 kHz, TEST1 = 0x31
     //     RX filter bandwidth ≤ 325 kHz, TEST1 = 0x35
 
-    cc1101_write_register(cc1101, FREND1, 0xb6, &status0, &status1);
-    cc1101_write_register(cc1101, FREND0, 0x11, &status0, &status1);
+    cc1101_write_register(cc1101, FREND1, 0xb6);
+    cc1101_write_register(cc1101, FREND0, 0x11);
 
-    cc1101_write_register(cc1101, TEST2, 0x88, &status0, &status1);
-    cc1101_write_register(cc1101, TEST1, 0x31, &status0, &status1);
-    cc1101_write_register(cc1101, TEST0, 0x09, &status0, &status1);
+    cc1101_write_register(cc1101, TEST2, 0x88);
+    cc1101_write_register(cc1101, TEST1, 0x31);
+    cc1101_write_register(cc1101, TEST0, 0x09);
 
-    cc1101_write_register(cc1101, FOCCFG, 0x1d, &status0, &status1);
+    cc1101_write_register(cc1101, FOCCFG, 0x1d);
 
-    cc1101_write_register(cc1101, BSCFG, 0x1c, &status0, &status1);
+    cc1101_write_register(cc1101, BSCFG, 0x1c);
 
 
     values[0] = 0x00;
@@ -280,9 +278,9 @@ int main() {
     cc1101_write_registers(cc1101, PATABLE, values, statuses, 2);
 
     // Flush the TX FIFO
-    cc1101_command_strobe(cc1101, SFTX, &status0);
+    cc1101_command_strobe(cc1101, SFTX);
 
-    cc1101_read_register(cc1101, TXBYTES, &status0, &value);
+    cc1101_read_register(cc1101, TXBYTES, &value);
     printf("%d bytes in TXFIFO\n", value);
 
     printf("registers after configuration:\n");
@@ -292,7 +290,7 @@ int main() {
 
     // Calibrate the frequency synthesizer.  We're in IDLE Mode so this
     // is allowed.
-    cc1101_command_strobe(cc1101, SCAL, &status0);
+    cc1101_command_strobe(cc1101, SCAL);
     cc1101_wait_for_idle(cc1101);
 
     // Ok, now we're ready.
