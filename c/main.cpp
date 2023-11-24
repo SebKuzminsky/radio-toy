@@ -37,7 +37,7 @@ void process_input_line(cc1101_t * cc1101, char * in) {
         char * token = strtok(NULL, delim);
         r = sscanf(token, "%lx", &data);
         if (r != 1) {
-            printf("failed to parse '%s'\n", in);
+            printf("failed to parse value from '%s'\n", token);
             return;
         }
         debug("tx 0x%08lx\n", data);
@@ -78,7 +78,7 @@ void process_input_line(cc1101_t * cc1101, char * in) {
         char * token = strtok(NULL, delim);
         r = sscanf(token, "%lu", &num_preamble_bytes);
         if (r != 1) {
-            printf("failed to parse '%s', r=%d\n", in, r);
+            printf("failed to parse value from '%s', r=%d\n", token, r);
             return;
         }
         debug("tx-preamble-bytes %lu\n", num_preamble_bytes);
@@ -91,7 +91,7 @@ void process_input_line(cc1101_t * cc1101, char * in) {
         char * token = strtok(NULL, delim);
         r = sscanf(token, "%lu", &baud);
         if (r != 1) {
-            printf("failed to parse '%s'\n", in);
+            printf("failed to parse value from '%s'\n", token);
             return;
         }
         debug("baud %lu\n", baud);
@@ -104,7 +104,7 @@ void process_input_line(cc1101_t * cc1101, char * in) {
         char * token = strtok(NULL, delim);
         r = sscanf(token, "%lu", &freq_hz);
         if (r != 1) {
-            printf("failed to parse '%s'\n", in);
+            printf("failed to parse value from '%s'\n", token);
             return;
         }
         debug("freq %lu\n", freq_hz);
