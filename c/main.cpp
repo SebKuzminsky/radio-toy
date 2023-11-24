@@ -110,6 +110,45 @@ void process_input_line(cc1101_t * cc1101, char * in) {
         debug("freq %lu\n", freq_hz);
         cc1101_set_base_frequency(cc1101, freq_hz);
 
+    } else if (strcasecmp("sync-word-msb", cmd) == 0) {
+        debug("got sync-word-msb\n");
+        int value;
+        int r;
+        char * token = strtok(NULL, delim);
+        r = sscanf(token, "%x", &value);
+        if (r != 1) {
+            printf("failed to parse value from '%s'\n", token);
+            return;
+        }
+        debug("msb 0x%02x\n", value);
+        cc1101_set_sync_word_msb(cc1101, value);
+
+    } else if (strcasecmp("sync-word-lsb", cmd) == 0) {
+        debug("got sync-word-lsb\n");
+        int value;
+        int r;
+        char * token = strtok(NULL, delim);
+        r = sscanf(token, "%x", &value);
+        if (r != 1) {
+            printf("failed to parse value from '%s'\n", token);
+            return;
+        }
+        debug("lsb 0x%02x\n", value);
+        cc1101_set_sync_word_lsb(cc1101, value);
+
+    } else if (strcasecmp("sync-mode", cmd) == 0) {
+        debug("got sync-mode\n");
+        int value;
+        int r;
+        char * token = strtok(NULL, delim);
+        r = sscanf(token, "%d", &value);
+        if (r != 1) {
+            printf("failed to parse value from '%s'\n", token);
+            return;
+        }
+        debug("sync-mode %d\n", value);
+        cc1101_set_sync_mode(cc1101, value);
+
     } else if (strcasecmp("debug", cmd) == 0) {
         debug("got debug\n");
         debug_flag = !debug_flag;

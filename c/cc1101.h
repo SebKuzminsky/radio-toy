@@ -765,4 +765,24 @@ static bool cc1101_set_tx_preamble_bytes(cc1101_t * cc1101, int num_preamble_byt
 }
 
 
+static bool cc1101_set_sync_word_msb(cc1101_t * cc1101, uint8_t value) {
+    return cc1101_write_register(cc1101, SYNC1, value);
+}
+
+
+static bool cc1101_set_sync_word_lsb(cc1101_t * cc1101, uint8_t value) {
+    return cc1101_write_register(cc1101, SYNC0, value);
+}
+
+
+static bool cc1101_set_sync_mode(cc1101_t * cc1101, int sync_mode) {
+    uint8_t DEM_DCFILT_OFF = 0;
+    uint8_t MOD_FORMAT = 3;
+    uint8_t MANCHESTER_EN = 0;
+    uint8_t SYNC_MODE = sync_mode;
+    uint8_t value = (DEM_DCFILT_OFF << 7) | (MOD_FORMAT << 4) | (MANCHESTER_EN << 3) | (SYNC_MODE);
+    return cc1101_write_register(cc1101, MDMCFG2, value);
+}
+
+
 #endif // __CC1101_H
