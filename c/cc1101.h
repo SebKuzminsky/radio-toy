@@ -194,6 +194,36 @@ typedef struct {
     do { if (cc1101->debug) printf(fmt, ## __VA_ARGS__); } while (0)
 
 
+static void cc1101_set_debug(cc1101_t * cc1101, bool debug);
+static void cc1101_set_panic_on_error(cc1101_t * cc1101, bool panic_on_error);
+static cc1101_t * cc1101_init(
+    spi_inst_t * spi,
+    uint spi_sck_gpio,
+    uint spi_tx_gpio,
+    uint spi_rx_gpio,
+    uint spi_csn_gpio
+);
+static char const * cc1101_status_decode(uint8_t const status);
+static bool cc1101_read_register(cc1101_t * cc1101, uint8_t const addr, uint8_t * status, uint8_t * value);
+static bool cc1101_read_register(cc1101_t * cc1101, uint8_t const addr, uint8_t * value);
+static bool cc1101_read_registers(cc1101_t * cc1101, uint8_t const addr, uint8_t * status, uint8_t * value, size_t count);
+static bool cc1101_read_registers(cc1101_t * cc1101, uint8_t const addr, uint8_t * value, size_t count);
+static bool cc1101_write_register(cc1101_t * cc1101, uint8_t const addr, uint8_t const value, uint8_t * status0, uint8_t * status1);
+static bool cc1101_write_register(cc1101_t * cc1101, uint8_t const addr, uint8_t const value);
+static bool cc1101_write_registers(cc1101_t * cc1101, uint8_t const addr, uint8_t const * value, uint8_t * status, size_t count);
+static bool cc1101_write_registers(cc1101_t * cc1101, uint8_t const addr, uint8_t const * value, size_t count);
+static bool cc1101_command_strobe(cc1101_t * cc1101, uint8_t const addr, uint8_t * status);
+static bool cc1101_command_strobe(cc1101_t * cc1101, uint8_t const addr);
+static void cc1101_dump_registers(cc1101_t * cc1101);
+static void cc1101_wait_for_idle(cc1101_t * cc1101);
+static bool cc1101_set_base_frequency(cc1101_t * cc1101, uint32_t frequency_hz);
+static bool cc1101_set_baudrate(cc1101_t * cc1101, uint32_t baudrate);
+static bool cc1101_set_tx_preamble_bytes(cc1101_t * cc1101, int num_preamble_bytes);
+static bool cc1101_set_sync_word_msb(cc1101_t * cc1101, uint8_t value);
+static bool cc1101_set_sync_word_lsb(cc1101_t * cc1101, uint8_t value);
+static bool cc1101_set_sync_mode(cc1101_t * cc1101, int sync_mode);
+
+
 void cc1101_set_debug(cc1101_t * cc1101, bool debug) {
     cc1101->debug = debug;
 }
