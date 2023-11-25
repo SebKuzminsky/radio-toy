@@ -1,0 +1,89 @@
+#!/usr/bin/env python3
+
+import argparse
+import json
+import serial
+
+
+parser = argparse.ArgumentParser(description="On/Off Keying Remote CLI")
+parser.add_argument('--device', '-d', default="/dev/ttyACM0", help="Serial port connected to the ook-remote device.")
+parser.add_argument("OOK_FILE", help="OOK data file to send.")
+
+args = parser.parse_args()
+
+# Everything before the first empty line is the json header.
+# Everything after the first empty line is the data to transmit.
+header_str = ""
+data = []
+reading_header = True
+with open(args.OOK_FILE) as ook_file:
+    for line in ook_file:
+        line = line.strip()
+        if reading_header:
+            if line == "":
+                reading_header = False
+                continue
+            header_str += line
+        else:
+            if line == "":
+                continue
+            data.append(line)
+
+header = json.loads(header_str)
+
+try:
+    s = serial.Serial(
+            port=args.device,
+            baudrate=115200,
+            bytesize=8,
+            parity='N',
+            stopbits=1,
+            xonxoff=None,
+            rtscts=True,
+            dsrdtr=None
+        )
+except Exception as e:
+    print("failed to open {}".format(args.device))
+    raise e
+
+
+#
+# Send all the config commands from the header.
+#
+
+s.write('idle\n'.encode('utf-8'))
+
+if "tx-preamble-bytes" in header:
+    s.write('tx-preamble-bytes {}\n'.format(header["tx-preamble-bytes"]).encode('utf-8'))
+
+if "sync-word-msb" in header:
+    s.write('sync-word-msb {}\n'.format(header["sync-word-msb"]).encode('utf-8'))
+
+if "sync-word-lsb" in header:
+    s.write('sync-word-lsb {}\n'.format(header["sync-word-lsb"]).encode('utf-8'))
+
+if "sync-mode" in header:
+    s.write('sync-mode {}\n'.format(header["sync-mode"]).encode('utf-8'))
+
+if "freq" in header:
+    s.write('freq {}\n'.format(header["freq"]).encode('utf-8'))
+
+if "baud" in header:
+    s.write('baud {}\n'.format(header["baud"]).encode('utf-8'))
+
+if "pktlen" in header:
+    s.write('pktlen {}\n'.format(header["pktlen"]).encode('utf-8'))
+
+
+for line in data:
+    cmd = 'tx-fifo {}\n'.format(line).encode('utf-8')
+    print("sending cmd: '{}'".format(cmd))
+    s.write(cmd)
+
+s.write('do-tx\n'.encode('utf-8'))
+
+# Without this delay, not all written data makes it to the device.
+# Calling s.flush() and s.close() instead of time.sleep() doesn't fix
+# the problem.
+import time
+time.sleep(0.1)
