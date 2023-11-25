@@ -222,6 +222,10 @@ static bool cc1101_set_tx_preamble_bytes(cc1101_t * cc1101, int num_preamble_byt
 static bool cc1101_set_sync_word_msb(cc1101_t * cc1101, uint8_t value);
 static bool cc1101_set_sync_word_lsb(cc1101_t * cc1101, uint8_t value);
 static bool cc1101_set_sync_mode(cc1101_t * cc1101, int sync_mode);
+static bool cc1101_set_packet_length(cc1101_t * cc1101, uint8_t value);
+static bool cc1101_txbytes(cc1101_t * cc1101, uint8_t * value);
+static bool cc1101_rxbytes(cc1101_t * cc1101, uint8_t * value);
+static bool cc1101_idle(cc1101_t * cc1101);
 
 
 void cc1101_set_debug(cc1101_t * cc1101, bool debug) {
@@ -820,6 +824,49 @@ static bool cc1101_set_sync_mode(cc1101_t * cc1101, int sync_mode) {
     uint8_t SYNC_MODE = sync_mode;
     uint8_t value = (DEM_DCFILT_OFF << 7) | (MOD_FORMAT << 4) | (MANCHESTER_EN << 3) | (SYNC_MODE);
     return cc1101_write_register(cc1101, MDMCFG2, value);
+}
+
+
+static bool cc1101_set_packet_length(cc1101_t * cc1101, uint8_t value) {
+    return cc1101_write_register(cc1101, PKTLEN, value);
+}
+
+
+static bool cc1101_txbytes(cc1101_t * cc1101, uint8_t * value) {
+    // This has to be a burst read, even though we're only reading
+    // one byte, because the register is one of the special ones above
+    // address 0x30.
+    return cc1101_read_registers(cc1101, TXBYTES, value, 1);
+}
+
+
+static bool cc1101_rxbytes(cc1101_t * cc1101, uint8_t * value) {
+    // This has to be a burst read, even though we're only reading
+    // one byte, because the register is one of the special ones above
+    // address 0x30.
+    return cc1101_read_registers(cc1101, RXBYTES, value, 1);
+}
+
+
+static bool cc1101_idle(cc1101_t * cc1101) {
+    int r;
+
+    r = cc1101_command_strobe(cc1101, SIDLE);
+    if (!r) return false;
+    cc1101_wait_for_idle(cc1101);
+    if (!r) return false;
+
+    cc1101_command_strobe(cc1101, SFRX);
+    if (!r) return false;
+    cc1101_wait_for_idle(cc1101);
+    if (!r) return false;
+
+    cc1101_command_strobe(cc1101, SFTX);
+    if (!r) return false;
+    cc1101_wait_for_idle(cc1101);
+    if (!r) return false;
+
+    return true;
 }
 
 
