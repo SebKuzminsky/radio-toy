@@ -255,7 +255,7 @@ cc1101_t * cc1101_init(
 static char const * cc1101_status_decode(uint8_t const status) {
     static char s[100];
 
-    char const * const states[] = { "IDLE", "RX", "TX", "FSTXON", "CALIBRATE", "SETTLING", "RXFIFO_OVERFLOW", "TXFIFO_OVERFLOW" };
+    char const * const states[] = { "IDLE", "RX", "TX", "FSTXON", "CALIBRATE", "SETTLING", "RXFIFO_OVERFLOW", "TXFIFO_UNDERFLOW" };
     bool chip_rdyn = status & 0x80;
     int state = (status >> 4) & 0x7;
     int fifo_bytes_available = status & 0xf;
