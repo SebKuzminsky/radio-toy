@@ -570,6 +570,7 @@ static void cc1101_wait_for_idle(cc1101_t * cc1101) {
     // Wait for status to go back to IDLE.  This has to be a burst read,
     // even though we're only reading one byte, because the MARCSTATE
     // register is one of the special ones above address 0x30.
+    // FIXME: handle errors here, TXFIFO_UNDERFLOW and RXFIFO_OVERFLOW and maybe others
     while (true) {
         int r;
         uint8_t value;
