@@ -52,6 +52,33 @@ void process_input_line(cc1101_t * cc1101, char * in) {
 
         cc1101_wait_for_idle(cc1101);
 
+    } else if (strcasecmp("tx-fifo", cmd) == 0) {
+        debug("got 'tx-fifo'\n");
+        uint8_t status0, status1;
+        int data;
+        int r;
+        char * token = strtok(NULL, delim);
+        r = sscanf(token, "%x", &data);
+        if (r != 1) {
+            printf("failed to parse value from '%s'\n", token);
+            return;
+        }
+        debug("tx-fifo 0x%02x\n", data);
+
+        cc1101_write_register(cc1101, FIFO, data, &status0, &status1);
+        debug("    status0: 0x%02x\n", status0);
+        debug("    status1: 0x%02x\n", status1);
+
+        uint8_t value;
+        cc1101_txbytes(cc1101, &value);
+        printf("%d bytes in tx fifo%s\n", 0x7f & value, 0x80 & value ? " (underflow!)" : "");
+
+    } else if (strcasecmp("do-tx", cmd) == 0) {
+        debug("got 'do-tx'\n");
+        // Start the TX.
+        cc1101_command_strobe(cc1101, STX);
+        cc1101_wait_for_idle(cc1101);
+
 #if 0
         gpio_put(debug_gpio, 1);
         ook_send(data);
