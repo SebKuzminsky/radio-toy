@@ -248,15 +248,15 @@ int main() {
 
 
     //
-    // Set up SPI.
+    // Set up the CC1101 module.
     //
 
-    constexpr uint spi_sck_gpio = 10;
-    constexpr uint spi_tx_gpio = 11;
-    constexpr uint spi_rx_gpio = 12;
-    constexpr uint spi_csn_gpio = 13;
+    constexpr uint spi_sck_gpio = 2;
+    constexpr uint spi_tx_gpio = 3;
+    constexpr uint spi_rx_gpio = 4;
+    constexpr uint spi_csn_gpio = 1;
 
-    cc1101_t * cc1101 = cc1101_init(spi1, spi_sck_gpio, spi_tx_gpio, spi_rx_gpio, spi_csn_gpio);
+    cc1101_t * cc1101 = cc1101_init(spi0, spi_sck_gpio, spi_tx_gpio, spi_rx_gpio, spi_csn_gpio);
     if (cc1101 == nullptr) {
         panic("can't initialize spi");
     }

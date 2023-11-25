@@ -46,11 +46,12 @@ UI on a phone, or have a screen & buttons for a UI,
     -------------------+----------+--------------------
     3V3 Out            | 36       | VCC
     GND                | 38       | GND
-    GPIO 10 (SPI1 SCK) | 14       | SCK
-    GPIO 11 (SPI1 TX)  | 15       | MOSI
+    -------------------+----------+--------------------
+    GPIO 2 (SPI0 SCK)  | 4        | SCK
+    GPIO 3 (SPI0 TX)   | 5        | MOSI
                        |          | GDO2
-    GPIO 12 (SPI1 RX)  | 16       | MISO
-    GPIO 13 (SPI1 CSn) | 17       | CSN
+    GPIO 4 (SPI0 RX)   | 6        | MISO
+    GPIO 1 (SPI0 CSn)  | 2        | CSN
                        |          | GDO0
     -------------------+----------+--------------------
 ```
