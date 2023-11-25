@@ -575,8 +575,15 @@ static void cc1101_wait_for_idle(cc1101_t * cc1101) {
         int r;
         uint8_t value;
         r = cc1101_read_registers(cc1101, MARCSTATE, &value, 1);
-        if (r && ((value & 0x1f) == 0x1)) {
-            return;
+        if (r) {
+            if ((value & 0x1f) == 0x01) {
+                return;
+            } else if (((value & 0x1f) == 0x11) || ((value & 0x1f) == 0x16)) {
+                // FIFO underflow/overflow, reset and (FIXME) report an error
+                printf("error, fifo underflow/overflow while waiting for tx/rx complete\n");
+                cc1101_idle(cc1101);
+                return;
+            }
         }
         sleep_us(100);
     }
