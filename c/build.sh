@@ -1,5 +1,9 @@
 #!/bin/bash
 set -e
 
-cmake -S . -B build -D PICO_BOARD=pico
-make -C build -j $(getconf _NPROCESSORS_ONLN)
+if [[ ! -v PICO_BOARD ]]; then
+    PICO_BOARD="pico"
+fi
+
+cmake -S . -B "build_${PICO_BOARD}" -D PICO_BOARD=${PICO_BOARD}
+make -C "build_${PICO_BOARD}" -j $(getconf _NPROCESSORS_ONLN)
