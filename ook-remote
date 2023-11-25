@@ -77,7 +77,6 @@ if "pktlen" in header:
 
 for line in data:
     cmd = 'tx-fifo {}\n'.format(line).encode('utf-8')
-    print("sending cmd: '{}'".format(cmd))
     s.write(cmd)
 
 s.write('do-tx\n'.encode('utf-8'))
