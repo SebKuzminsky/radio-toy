@@ -17,8 +17,14 @@ use embassy_time::{Duration, Timer};
 use static_cell::make_static;
 use {defmt_rtt as _, panic_probe as _};
 
-bind_interrupts!(struct Irqs {
+use embassy_rp::peripherals::USB;
+
+bind_interrupts!(struct Pio0Irqs {
     PIO0_IRQ_0 => InterruptHandler<PIO0>;
+});
+
+bind_interrupts!(struct UsbIrqs {
+    USBCTRL_IRQ => embassy_rp::usb::InterruptHandler<USB>;
 });
 
 #[embassy_executor::task]
@@ -26,6 +32,11 @@ async fn wifi_task(
     runner: cyw43::Runner<'static, Output<'static, PIN_23>, PioSpi<'static, PIN_25, PIO0, 0, DMA_CH0>>,
 ) -> ! {
     runner.run().await
+}
+
+#[embassy_executor::task]
+async fn logger_task(driver: embassy_rp::usb::Driver<'static, USB>) {
+    embassy_usb_logger::run!(1024, log::LevelFilter::Info, driver);
 }
 
 #[embassy_executor::main]
@@ -43,12 +54,15 @@ async fn main(spawner: Spawner) {
 
     let pwr = Output::new(p.PIN_23, Level::Low);
     let cs = Output::new(p.PIN_25, Level::High);
-    let mut pio = Pio::new(p.PIO0, Irqs);
+    let mut pio = Pio::new(p.PIO0, Pio0Irqs);
     let spi = PioSpi::new(&mut pio.common, pio.sm0, pio.irq0, cs, p.PIN_24, p.PIN_29, p.DMA_CH0);
 
     let state = make_static!(cyw43::State::new());
     let (_net_device, mut control, runner) = cyw43::new(state, pwr, spi, fw).await;
     unwrap!(spawner.spawn(wifi_task(runner)));
+
+    let driver = embassy_rp::usb::Driver::new(p.USB, UsbIrqs);
+    spawner.spawn(logger_task(driver)).unwrap();
 
     control.init(clm).await;
     control
@@ -56,13 +70,16 @@ async fn main(spawner: Spawner) {
         .await;
 
     let delay = Duration::from_secs(1);
+    let mut count = 0;
     loop {
-        info!("led on!");
+        log::info!("led on {count}");
         control.gpio_set(0, true).await;
         Timer::after(delay).await;
 
-        info!("led off!");
+        log::info!("led off {count}");
         control.gpio_set(0, false).await;
         Timer::after(delay).await;
+
+        count += 1;
     }
 }
