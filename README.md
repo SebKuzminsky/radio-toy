@@ -32,11 +32,67 @@ may be preferable.
 
 ## Tethered or untethered?
 
-Tethered: Connect by USB-C to a laptop or an Android phone (serial
-terminal or custom app).
 
-Untethered: LiPo battery & USB-C charging.  Connect by Bluetooth to a
-UI on a phone, or have a screen & buttons for a UI,
+### Tethered
+
+Connect by USB-C to a laptop or an Android phone (serial terminal or
+custom app).
+
+Pros:
+* simple to build (no battery & charging)
+* simple to talk to (minicom or pySerial)
+
+Cons:
+* Conspicuous to have a dongle out and connected.
+
+
+### Untethered
+
+LiPo battery & USB charging.
+
+LiPo battery options:
+* 1x18650: 2200 mAh, 19 mm x 68 mm
+* 2x18650: 4400 mAh, 38 mm x 66 mm
+* Adafruit Feather battery: 400 mAh, 17.5 mm x 37 mm (fits under a Feather or Pico)
+
+Cons:
+* battery & charger
+* Bulkier
+
+
+#### Web UI
+
+The device is a featureless brick, like a USB "power bank".  It has a
+USB port (for charging the battery) and an on/off switch.
+
+You connect by Bluetooth or Wifi to a UI on a laptop or phone.  This is
+very inconspicuous - you can leave the device in a pocket or backpack
+and just play with your phone or laptop.
+
+Or web UI over IP-over-USB,
+e.g. <https://github.com/maxnet/pico-webserver>?
+
+I don't know of an RP2040 board with both LiPo and Wifi.  I could
+use a Pico W and and external LiPo charger/power supply like this one:
+* <https://www.adafruit.com/product/5612>
+* <https://shop.pimoroni.com/products/pico-lipo-shim>
+
+BOM:
+* Pico W (21 mm wide, 51 mm long)
+* CC1101 module of some sort (FIXME)
+* Pimoroni Pico LiPo Power Shim (fits under Pico W, solders onto its headers)
+* LiPo battery
+* 3d printed case
+
+RP2040 board options:
+* Pico W
+* Seeed Wio RP2040 <https://www.seeedstudio.com/Wio-RP2040-mini-Dev-Board-p-4933.html>
+* Arduino Nano RP2040 Connect
+
+
+#### Physical UI
+
+The device has a screen & buttons, like a Flipper Zero.
 
 
 # Wiring
@@ -57,7 +113,50 @@ UI on a phone, or have a screen & buttons for a UI,
 ```
 
 
+# Firmware
+
+C or Rust?
+
+I really want to use Rust but i'm not sure about software support.
+
+Unknown:
+
+    Embassy?
+
+    Pico SPI?
+
+    Web server/GUI?
+
+        egui?
+
+            <https://github.com/emilk/egui>
+
+            <https://www.egui.rs/#demo>
+
+    Does embassy-net do mdns?  it does igmp but doesnt look like mdns
+
+Working:
+
+    Pico W wifi chip (Infineon CYW43439):
+
+        <https://lib.rs/crates/cyw43>
+
+        <https://github.com/embassy-rs/embassy>
+
+        <https://github.com/embassy-rs/embassy/tree/main/cyw43>
+
+    Pico USB console
+
+        <https://github.com/rp-rs/rp-hal/issues/652#issuecomment-1639975385>
+
+        embassy-usb-logger
+
+
 # CC1101 info & projects
+
+<https://docs.rs/cc1101/latest/cc1101/>
+
+<https://github.com/28757B2/cc1101-driver>
 
 <https://github.com/mengguang/cc1101>
 
@@ -66,3 +165,7 @@ UI on a phone, or have a screen & buttons for a UI,
 <https://github.com/LSatan/SmartRC-CC1101-Driver-Lib>
 
 <https://github.com/gusgorman402/RFmoggy>
+
+<https://github.com/ea/srxe_cc1101>
+
+<https://www.printables.com/model/537529-raspberry-pi-pico-rp2040-cc1101-tool-chassis>
