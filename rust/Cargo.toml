@@ -6,6 +6,8 @@ license = "MIT OR Apache-2.0"
 
 [dependencies]
 
+cc1101 = { path = "submodules/cc1101" }
+
 # From embassy examples/rp
 embassy-embedded-hal = { version = "0.1.0", path = "submodules/embassy/embassy-embedded-hal", features = ["defmt"] }
 embassy-sync = { version = "0.4.0", features = ["defmt"] }

@@ -7,6 +7,7 @@
 #![feature(type_alias_impl_trait)]
 #![allow(async_fn_in_trait)]
 
+use cc1101;
 use cyw43_pio::PioSpi;
 use defmt::*;
 use {defmt_rtt as _, panic_probe as _};
@@ -110,6 +111,68 @@ async fn main(spawner: Spawner) {
 
     cyw43_control.start_ap_open("pico", 5).await;
     //control.start_ap_wpa2("pico", "password", 5).await;
+
+
+    //
+    // Set up SPI to the CC1101.
+    //
+
+    let cc1101_miso = p.PIN_4;
+    let cc1101_mosi = p.PIN_3;
+    let cc1101_clk = p.PIN_2;
+    let cc1101_cs = p.PIN_1;
+
+    let mut config = embassy_rp::spi::Config::default();
+    config.frequency = 5_000_000;
+    let cc1101_spi = embassy_rp::spi::Spi::new_blocking(p.SPI0, cc1101_clk, cc1101_mosi, cc1101_miso, config);
+
+    let cc1101_cs = Output::new(cc1101_cs, Level::Low);
+
+    let mut cc1101_handle = cc1101::lowlevel::Cc1101::new(cc1101_spi, cc1101_cs).unwrap();
+
+
+    //
+    // Peek & poke the cc1101 some.
+    //
+
+    let r = cc1101_handle.read_register(cc1101::lowlevel::registers::Status::MARCSTATE).unwrap();
+    log::info!("MARCSTATE 0x{r:02x}");
+
+    cc1101_handle.write_strobe(cc1101::lowlevel::registers::Command::SRES).unwrap();
+    log::info!("SRES");
+    embassy_time::Timer::after(embassy_time::Duration::from_millis(250)).await;
+    let r = cc1101_handle.read_register(cc1101::lowlevel::registers::Status::MARCSTATE).unwrap();
+    log::info!("MARCSTATE {r} {r:#02x}");
+
+    cc1101_handle.write_strobe(cc1101::lowlevel::registers::Command::SRX).unwrap();
+    log::info!("SRX");
+    let poll_delay = embassy_time::Duration::from_millis(100);
+    for _ in 0..10 {
+        let r = cc1101_handle.read_register(cc1101::lowlevel::registers::Status::MARCSTATE).unwrap();
+        log::info!("MARCSTATE {r} {r:#02x}");
+        embassy_time::Timer::after(poll_delay).await;
+    }
+
+    cc1101_handle.write_strobe(cc1101::lowlevel::registers::Command::SRES).unwrap();
+    log::info!("SRES");
+    embassy_time::Timer::after(embassy_time::Duration::from_millis(250)).await;
+    let r = cc1101_handle.read_register(cc1101::lowlevel::registers::Status::MARCSTATE).unwrap();
+    log::info!("MARCSTATE {r} {r:#02x}");
+
+    cc1101_handle.write_strobe(cc1101::lowlevel::registers::Command::STX).unwrap();
+    log::info!("STX");
+    let poll_delay = embassy_time::Duration::from_millis(100);
+    for _ in 0..10 {
+        let r = cc1101_handle.read_register(cc1101::lowlevel::registers::Status::MARCSTATE).unwrap();
+        log::info!("MARCSTATE {r} {r:#02x}");
+        embassy_time::Timer::after(poll_delay).await;
+    }
+
+    cc1101_handle.write_strobe(cc1101::lowlevel::registers::Command::SIDLE).unwrap();
+    log::info!("SIDLE");
+    embassy_time::Timer::after(embassy_time::Duration::from_millis(250)).await;
+    let r = cc1101_handle.read_register(cc1101::lowlevel::registers::Status::MARCSTATE).unwrap();
+    log::info!("MARCSTATE {r} {r:#02x}");
 
 
     // And now we can use it!
