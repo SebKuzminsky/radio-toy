@@ -113,6 +113,9 @@ async fn main(spawner: Spawner) {
     //control.start_ap_wpa2("pico", "password", 5).await;
 
 
+    embassy_time::Timer::after(embassy_time::Duration::from_secs(3)).await;
+
+
     //
     // Set up SPI to the CC1101.
     //
