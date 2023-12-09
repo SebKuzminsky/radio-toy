@@ -2,20 +2,11 @@ This is a project inspired by the [Flipper
 Zero](https://flipperzero.one/) and the
 [ook-remote](https://github.com/SebKuzminsky/ook-remote/tree/master).
 
-
-# Desired features
-
-* Record & replay RF remotes (like the WEN3401 air filter at the hack
-space).
-
-* Read & clone RFID tags (like the card that gets me into the hack space).
-
-* Read & clone the NFC stuff in credit cards.
+The goal is to identify, record, & spoof RF remotes (like the WEN3410
+air filter at the hack space).
 
 
 # Design thoughts
-
-Raspberry Pi Pico, Micro-SD card.
 
 
 ## Radio chip
@@ -23,9 +14,9 @@ Raspberry Pi Pico, Micro-SD card.
 * [CC1101](https://www.ti.com/product/CC1101).  Lots of modules available.
 I have a D-Sun CC1101 and an Ebyte E07-M1101D, they seem about equivalent.
 SMA connector, 2x5 male pin header, 2 mounting holes near the antenna.
-There's also one called AS07-M1101S.  For building into a portable
-product, a module with solderable through holes instead of the pin header
-may be preferable.
+The D-SUN mounting holes are slightly more convenient.  There's also one
+called AS07-M1101S.  For building into a portable product, a module with
+solderable through holes instead of the pin header may be preferable.
 
 * [Semtech Sx1276](https://www.semtech.com/products/wireless-rf/lora-connect/sx1276)
 
@@ -88,11 +79,6 @@ RP2040 board options:
 * Pico W
 * Seeed Wio RP2040 <https://www.seeedstudio.com/Wio-RP2040-mini-Dev-Board-p-4933.html>
 * Arduino Nano RP2040 Connect
-
-
-#### Physical UI
-
-The device has a screen & buttons, like a Flipper Zero.
 
 
 # Wiring
@@ -186,6 +172,10 @@ Working:
 
 
 # Enclosure
+
+The enclosure holds a Raspberry Pi Pico W, a D-SUN CC1101 module, a
+Pimoroni "LiPo SHIM for Pico", and a LiPo 18650 battery.  The FreeCAD
+files (and STLs) are in the `enclosure/` directory.
 
 M2 wood screws to hold the radio and the Pico-W to their standoffs.
 
