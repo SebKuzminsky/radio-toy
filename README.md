@@ -152,6 +152,14 @@ Working:
         embassy-usb-logger
 
 
+# Enclosure
+
+M2 wood screws to hold the radio and the Pico-W to their standoffs.
+
+M2.6 wood screws to hold the two parts of the enclosure together.
+Predrill \#42 (2.375 mm).
+
+
 # CC1101 info & projects
 
 <https://docs.rs/cc1101/latest/cc1101/>
