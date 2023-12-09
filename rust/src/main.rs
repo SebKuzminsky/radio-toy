@@ -45,9 +45,16 @@ async fn logger_task(driver: embassy_rp::usb::Driver<'static, USB>) {
     embassy_usb_logger::run!(1024, log::LevelFilter::Info, driver);
 }
 
+
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
+
+
+    //
+    // Set up the Wifi.
+    //
+
     let fw = include_bytes!("../submodules/embassy/cyw43-firmware/43439A0.bin");
     let clm = include_bytes!("../submodules/embassy/cyw43-firmware/43439A0_clm.bin");
 
@@ -64,18 +71,16 @@ async fn main(spawner: Spawner) {
     let spi = PioSpi::new(&mut pio.common, pio.sm0, pio.irq0, cs, p.PIN_24, p.PIN_29, p.DMA_CH0);
 
     let state = make_static!(cyw43::State::new());
-    let (net_device, mut control, runner) = cyw43::new(state, pwr, spi, fw).await;
-    unwrap!(spawner.spawn(wifi_task(runner)));
+    let (net_device, mut cyw43_control, cyw43_runner) = cyw43::new(state, pwr, spi, fw).await;
+    unwrap!(spawner.spawn(wifi_task(cyw43_runner)));
 
-    let driver = embassy_rp::usb::Driver::new(p.USB, UsbIrqs);
-    spawner.spawn(logger_task(driver)).unwrap();
-
-    control.init(clm).await;
-    control
+    cyw43_control.init(clm).await;
+    cyw43_control
         .set_power_management(cyw43::PowerManagementMode::PowerSave)
         .await;
 
     // Use a link-local address for communication without DHCP server
+    // FIXME: should pick an unused link-local address here per the protocol
     let config = Config::ipv4_static(embassy_net::StaticConfigV4 {
         address: embassy_net::Ipv4Cidr::new(embassy_net::Ipv4Address::new(169, 254, 1, 1), 16),
         dns_servers: heapless::Vec::new(),
@@ -95,8 +100,12 @@ async fn main(spawner: Spawner) {
 
     unwrap!(spawner.spawn(net_task(stack)));
 
-    control.start_ap_open("pico", 5).await;
+    cyw43_control.start_ap_open("pico", 5).await;
     //control.start_ap_wpa2("pico", "password", 5).await;
+
+
+    let driver = embassy_rp::usb::Driver::new(p.USB, UsbIrqs);
+    spawner.spawn(logger_task(driver)).unwrap();
 
     // And now we can use it!
 
@@ -108,7 +117,7 @@ async fn main(spawner: Spawner) {
         let mut socket = embassy_net::tcp::TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
         socket.set_timeout(Some(embassy_time::Duration::from_secs(10)));
 
-        control.gpio_set(0, false).await;
+        cyw43_control.gpio_set(0, false).await;
         log::info!("Listening on 169.254.1.1:1234...");
         if let Err(e) = socket.accept(1234).await {
             log::warn!("accept error: {:?}", e);
@@ -116,7 +125,7 @@ async fn main(spawner: Spawner) {
         }
 
         log::info!("Received connection from {:?}", socket.remote_endpoint());
-        control.gpio_set(0, true).await;
+        cyw43_control.gpio_set(0, true).await;
 
         loop {
             let n = match socket.read(&mut buf).await {
