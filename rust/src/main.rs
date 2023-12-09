@@ -52,6 +52,14 @@ async fn main(spawner: Spawner) {
 
 
     //
+    // Set up logging to USB serial port.
+    //
+
+    let usb_driver = embassy_rp::usb::Driver::new(p.USB, UsbIrqs);
+    spawner.spawn(logger_task(usb_driver)).unwrap();
+
+
+    //
     // Set up the Wifi.
     //
 
@@ -103,9 +111,6 @@ async fn main(spawner: Spawner) {
     cyw43_control.start_ap_open("pico", 5).await;
     //control.start_ap_wpa2("pico", "password", 5).await;
 
-
-    let driver = embassy_rp::usb::Driver::new(p.USB, UsbIrqs);
-    spawner.spawn(logger_task(driver)).unwrap();
 
     // And now we can use it!
 
