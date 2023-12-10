@@ -131,51 +131,128 @@ async fn main(spawner: Spawner) {
 
     let cc1101_cs = Output::new(cc1101_cs, Level::Low);
 
-    let mut cc1101_handle = cc1101::lowlevel::Cc1101::new(cc1101_spi, cc1101_cs).unwrap();
+    let mut cc1101_handle = cc1101::Cc1101::new(cc1101_spi, cc1101_cs).unwrap();
 
 
     //
-    // Peek & poke the cc1101 some.
+    // Configure the CC1101 for OOK at 433 MHz, 3 kbaud.
     //
 
-    let r = cc1101_handle.read_register(cc1101::lowlevel::registers::Status::MARCSTATE).unwrap();
-    log::info!("MARCSTATE 0x{r:02x}");
+    // FIFOTHR:
+    //     RX filter bandwidth > 325 kHz, FIFOTHR = 0x07
+    //     RX filter bandwidth ≤ 325 kHz, FIFOTHR = 0x47
 
-    cc1101_handle.write_strobe(cc1101::lowlevel::registers::Command::SRES).unwrap();
-    log::info!("SRES");
-    embassy_time::Timer::after(embassy_time::Duration::from_millis(250)).await;
-    let r = cc1101_handle.read_register(cc1101::lowlevel::registers::Status::MARCSTATE).unwrap();
-    log::info!("MARCSTATE {r} {r:#02x}");
+    // let r = cc1101_handle.0.read_register(cc1101::lowlevel::registers::Config::FIFOTHR).unwrap();
+    // log::info!("FIFOTHR 0x{r:02x}");
 
-    cc1101_handle.write_strobe(cc1101::lowlevel::registers::Command::SRX).unwrap();
-    log::info!("SRX");
-    let poll_delay = embassy_time::Duration::from_millis(100);
-    for _ in 0..10 {
-        let r = cc1101_handle.read_register(cc1101::lowlevel::registers::Status::MARCSTATE).unwrap();
-        log::info!("MARCSTATE {r} {r:#02x}");
-        embassy_time::Timer::after(poll_delay).await;
-    }
+    cc1101_handle.0.write_register(cc1101::lowlevel::registers::Config::FIFOTHR, 0x40).unwrap();
+    cc1101_handle.0.write_register(cc1101::lowlevel::registers::Config::PKTLEN, 0x04).unwrap();
+    cc1101_handle.0.write_register(cc1101::lowlevel::registers::Config::PKTCTRL1, 0x04).unwrap();
 
-    cc1101_handle.write_strobe(cc1101::lowlevel::registers::Command::SRES).unwrap();
-    log::info!("SRES");
-    embassy_time::Timer::after(embassy_time::Duration::from_millis(250)).await;
-    let r = cc1101_handle.read_register(cc1101::lowlevel::registers::Status::MARCSTATE).unwrap();
-    log::info!("MARCSTATE {r} {r:#02x}");
+    // Packet format:
+    // * whitening off
+    // * use FIFOs for Rx and Tx
+    // * disable CRC calculation on Tx and CRC check on Rx
+    // * fixed packet length specified by PKTLEN register
+    cc1101_handle.0.write_register(cc1101::lowlevel::registers::Config::PKTCTRL0, 0x00).unwrap();
+    cc1101_handle.0.write_register(cc1101::lowlevel::registers::Config::ADDR, 0x00).unwrap();
+    cc1101_handle.0.write_register(cc1101::lowlevel::registers::Config::CHANNR, 0x00).unwrap();
 
-    cc1101_handle.write_strobe(cc1101::lowlevel::registers::Command::STX).unwrap();
-    log::info!("STX");
-    let poll_delay = embassy_time::Duration::from_millis(100);
-    for _ in 0..10 {
-        let r = cc1101_handle.read_register(cc1101::lowlevel::registers::Status::MARCSTATE).unwrap();
-        log::info!("MARCSTATE {r} {r:#02x}");
-        embassy_time::Timer::after(poll_delay).await;
-    }
+    // Set IF (intermediate frequency).
+    // FIXME
 
-    cc1101_handle.write_strobe(cc1101::lowlevel::registers::Command::SIDLE).unwrap();
-    log::info!("SIDLE");
-    embassy_time::Timer::after(embassy_time::Duration::from_millis(250)).await;
-    let r = cc1101_handle.read_register(cc1101::lowlevel::registers::Status::MARCSTATE).unwrap();
-    log::info!("MARCSTATE {r} {r:#02x}");
+    cc1101_handle.0.write_register(cc1101::lowlevel::registers::Config::FSCTRL1, 0x0c).unwrap();
+
+    cc1101_handle.0.write_register(cc1101::lowlevel::registers::Config::FSCTRL0, 0x00).unwrap();
+
+    // Set the carrier frequency to 433.920 MHz.
+    cc1101_handle.set_frequency(433_920_000u64).unwrap();
+
+    // Input bandwidth, ~203 kHz
+    cc1101_handle.0.write_register(cc1101::lowlevel::registers::Config::MDMCFG4, 0x8c).unwrap();
+
+    cc1101_handle.set_data_rate(115200u64).unwrap();
+
+    // Set modem to ASK/OOK
+    // 0x30: ook, no preamble
+    // 0x33: ook, preamble
+    cc1101_handle.0.write_register(cc1101::lowlevel::registers::Config::MDMCFG2, 0x33).unwrap();
+
+    // Disable FEC, 2 preamble bytes
+    cc1101_handle.0.write_register(cc1101::lowlevel::registers::Config::MDMCFG1, 0x22).unwrap();
+
+    cc1101_handle.0.write_register(cc1101::lowlevel::registers::Config::MDMCFG0, 0xf8).unwrap();
+
+    // Not used for OOK
+    cc1101_handle.0.write_register(cc1101::lowlevel::registers::Config::DEVIATN, 0x62).unwrap();
+
+    // Main Radio Control State Machine Configuration 1:
+    // * CCA_MODE=3 ??
+    // * RXOFF_MODE=0 (go to IDLE after receiving a packet)
+    // * TXOFF_MODE=0 (go to IDLE after transmitting a packet)
+    cc1101_handle.0.write_register(cc1101::lowlevel::registers::Config::MCSM1, 0x30).unwrap();
+
+    // Main Radio Control State Machine Configuration 0:
+    // * FS_AUTOCAL=3 (calibrate every 4th time when going from RX or TX to IDLE)
+    cc1101_handle.0.write_register(cc1101::lowlevel::registers::Config::MCSM0, 0x30).unwrap();
+
+    // Configure for OOK per Design Note DN022.
+    // * AGCCTRL2 = 0x03 to 0x07
+    // * AGCCTRL1 = 0x00
+    // * AGCCTRL0 = 0x91 or 0x92
+
+    cc1101_handle.0.write_register(cc1101::lowlevel::registers::Config::AGCCTRL2, 0x03).unwrap();
+    cc1101_handle.0.write_register(cc1101::lowlevel::registers::Config::AGCCTRL1, 0x00).unwrap();
+    cc1101_handle.0.write_register(cc1101::lowlevel::registers::Config::AGCCTRL0, 0x91).unwrap();
+
+    cc1101_handle.0.write_register(cc1101::lowlevel::registers::Config::FSCAL3, 0xea).unwrap();
+    cc1101_handle.0.write_register(cc1101::lowlevel::registers::Config::FSCAL2, 0x2a).unwrap();
+    cc1101_handle.0.write_register(cc1101::lowlevel::registers::Config::FSCAL1, 0x00).unwrap();
+    cc1101_handle.0.write_register(cc1101::lowlevel::registers::Config::FSCAL0, 0x1f).unwrap();
+
+    // FREND1:
+    //     RX filter bandwidth > 101 kHz, FREND1 = 0xB6
+    //     RX filter bandwidth ≤ 101 kHz, FREND1 = 0x56
+    // TEST2:
+    //     RX filter bandwidth > 325 kHz, TEST2 = 0x88
+    //     RX filter bandwidth ≤ 325 kHz, TEST2 = 0x81
+    // TEST1:
+    //     RX filter bandwidth > 325 kHz, TEST1 = 0x31
+    //     RX filter bandwidth ≤ 325 kHz, TEST1 = 0x35
+
+    cc1101_handle.0.write_register(cc1101::lowlevel::registers::Config::FREND1, 0xb6).unwrap();
+    cc1101_handle.0.write_register(cc1101::lowlevel::registers::Config::FREND0, 0x11).unwrap();
+
+    cc1101_handle.0.write_register(cc1101::lowlevel::registers::Config::TEST2, 0x88).unwrap();
+    cc1101_handle.0.write_register(cc1101::lowlevel::registers::Config::TEST1, 0x31).unwrap();
+    cc1101_handle.0.write_register(cc1101::lowlevel::registers::Config::TEST0, 0x09).unwrap();
+
+    cc1101_handle.0.write_register(cc1101::lowlevel::registers::Config::FOCCFG, 0x1d).unwrap();
+
+    cc1101_handle.0.write_register(cc1101::lowlevel::registers::Config::BSCFG, 0x1c).unwrap();
+
+    let patable_values: [u8; 2] = [0x00, 0xc6];
+    cc1101_handle.write_patable(&patable_values).unwrap();
+
+    // Flush the TX FIFO
+    cc1101_handle.0.write_strobe(cc1101::lowlevel::registers::Command::SFTX).unwrap();
+
+    let tx_bytes = cc1101_handle.0.read_register(cc1101::lowlevel::registers::Status::TXBYTES).unwrap();
+    log::info!("{tx_bytes} bytes in TXFIFO");
+
+    // printf("registers after configuration:\n");
+    // cc1101_dump_registers(cc1101);
+
+    // sleep_ms(2 * 1000);
+
+    // Calibrate the frequency synthesizer.  We're in IDLE Mode so this
+    // is allowed.
+    cc1101_handle.set_radio_mode(cc1101::RadioMode::Calibrate).unwrap();
+
+    // Ok, now we're ready.
+//     while(1) {
+//         read_serial(cc1101);
+//     }
 
 
     // And now we can use it!
