@@ -3,4 +3,4 @@
 	url = https://github.com/embassy-rs/embassy
 [submodule "rust/submodules/cc1101"]
 	path = rust/submodules/cc1101
-	url = https://github.com/dsvensson/cc1101
+	url = https://github.com/SebKuzminsky/cc1101
