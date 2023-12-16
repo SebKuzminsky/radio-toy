@@ -250,6 +250,81 @@ async fn main(spawner: Spawner) {
     cc1101_handle.set_radio_mode(cc1101::RadioMode::Calibrate).unwrap();
 
     // Ok, now we're ready.
+
+    // "tx-preamble-bytes": 6
+
+    // register!(MDMCFG1, 0b0010_0010, u8, {
+    //     #[doc = "Enable Forward Error Correction"]
+    //     fec_en @ 7,
+    //     #[doc = "Sets the minimum number of preamble bytes to be transmitted"]
+    //     num_preamble @ 4..6,
+    //     #[doc = "Exponent of channel spacing"]
+    //     chanspc_e @ 0..1,
+    // });
+
+    // 0x32
+    // fec_en == 0 (0x00)
+    // num_preamble == 3 (0x30)
+    // _pad == 0 (0x00)
+    // chanspc_en = 2 (0x02)
+
+    let old_v = cc1101_handle.0.read_register(cc1101::lowlevel::registers::Config::MDMCFG1).unwrap();
+    log::info!("MDMCFG1 old_v is {:02x}", old_v);
+
+    // let mut v = cc1101::lowlevel::registers::MDMCFG1(old_v);
+    // v.fec_en = 0;
+    // v.num_preamble = cc1101::lowlevel::types::NumPreamble::N_6;
+    // v.chanspc_e = 0;
+
+    // log::info!("MDMCFG1 is {:02x}", v);
+
+    cc1101_handle.0.write_register(cc1101::lowlevel::registers::Config::MDMCFG1, 0x32).unwrap();
+
+    // "sync-word-msb": 0,
+    // "sync-word-lsb": 0,
+    cc1101_handle.0.write_register(cc1101::lowlevel::registers::Config::SYNC1, 0x00).unwrap();
+    cc1101_handle.0.write_register(cc1101::lowlevel::registers::Config::SYNC0, 0x00).unwrap();
+
+    // "sync-mode": 3,
+    let dem_dcfilt_off: u8 = 0;
+    let mod_format: u8 = 3;
+    let manchester_en: u8 = 0;
+    let sync_mode: u8 = 3;
+    let v: u8 = (dem_dcfilt_off << 7) | (mod_format << 4) | (manchester_en << 3) | (sync_mode);
+    cc1101_handle.0.write_register(cc1101::lowlevel::registers::Config::MDMCFG2, v).unwrap();
+
+
+    // "freq": 433920000,
+    // (done above)
+
+    // "baud": 3175,
+    cc1101_handle.set_data_rate(3_175).unwrap();
+
+    // "pktlen": 32
+    cc1101_handle.0.write_register(cc1101::lowlevel::registers::Config::PKTLEN, 32).unwrap();
+
+
+    // data
+    let data: [u8; 32] = [
+        0xe8, 0xe8, 0xe8, 0xe8,
+        0xe8, 0xe8, 0xe8, 0xee,
+        0x00, 0x00, 0x00, 0x00,
+        0xe8, 0xe8, 0xe8, 0xe8,
+        0xe8, 0xe8, 0xe8, 0xee,
+        0x00, 0x00, 0x00, 0x00,
+        0xe8, 0xe8, 0xe8, 0xe8,
+        0xe8, 0xe8, 0xe8, 0xee,
+    ];
+
+    for byte in data {
+        log::info!("writing to FIFO: 0x{:02x}", byte);
+        cc1101_handle.0.write_register(cc1101::lowlevel::registers::Command::FIFO, byte).unwrap();
+    }
+
+    cc1101_handle.0.write_strobe(cc1101::lowlevel::registers::Command::STX).unwrap();
+    cc1101_handle.await_machine_state(cc1101::lowlevel::types::MachineState::IDLE).unwrap();
+
+
 //     while(1) {
 //         read_serial(cc1101);
 //     }
