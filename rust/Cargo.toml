@@ -11,8 +11,8 @@ cc1101 = { path = "submodules/cc1101" }
 # From embassy examples/rp
 embassy-embedded-hal = { version = "0.1.0", path = "submodules/embassy/embassy-embedded-hal", features = ["defmt"] }
 embassy-sync = { version = "0.4.0", features = ["defmt"] }
-embassy-executor = { version = "0.3.3", path = "submodules/embassy/embassy-executor", features = ["nightly", "arch-cortex-m", "executor-thread", "executor-interrupt", "defmt", "integrated-timers"] }
-embassy-time = { version = "0.1.5", path = "submodules/embassy/embassy-time", features = ["defmt", "defmt-timestamp-uptime"] }
+embassy-executor = { version = "0.4.0", path = "submodules/embassy/embassy-executor", features = ["nightly", "arch-cortex-m", "executor-thread", "executor-interrupt", "defmt", "integrated-timers"] }
+embassy-time = { version = "0.2.0", path = "submodules/embassy/embassy-time", features = ["defmt", "defmt-timestamp-uptime"] }
 embassy-rp = { version = "0.1.0", path = "submodules/embassy/embassy-rp",  features = ["defmt", "unstable-pac", "time-driver", "critical-section-impl"] }
 embassy-usb = { version = "0.1.0", path = "submodules/embassy/embassy-usb",  features = ["defmt"] }
 embassy-net = { version = "0.2.0", path = "submodules/embassy/embassy-net", features = ["defmt", "tcp", "udp", "dhcpv4", "medium-ethernet"] }
@@ -49,7 +49,7 @@ smart-leds = "0.3.0"
 heapless = "0.8"
 usbd-hid = "0.6.1"
 
-embedded-hal-1 = { package = "embedded-hal", version = "=1.0.0-rc.2" }
+embedded-hal-1 = { package = "embedded-hal", version = "=1.0.0-rc.3" }
 embedded-hal-async = "1.0.0-rc.2"
 embedded-hal-bus = { version = "0.1.0-rc.2", features = ["async"] }
 embedded-io-async = { version = "0.6.1", features = ["defmt-03"] }

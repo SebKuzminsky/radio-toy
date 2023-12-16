@@ -12,17 +12,17 @@ use cyw43_pio::PioSpi;
 use defmt::*;
 use {defmt_rtt as _, panic_probe as _};
 use embassy_executor::Spawner;
-use embassy_net::{Config, Stack, StackResources};
+use embassy_net::{Stack, StackResources};
 use embassy_rp::bind_interrupts;
 use embassy_rp::gpio::{Level, Output};
 use embassy_rp::peripherals::{DMA_CH0, PIN_23, PIN_25, PIO0};
 use embassy_rp::peripherals::USB;
-use embassy_rp::pio::{InterruptHandler, Pio};
+use embassy_rp::pio::Pio;
 use embedded_io_async::Write;
 use static_cell::make_static;
 
 bind_interrupts!(struct Pio0Irqs {
-    PIO0_IRQ_0 => InterruptHandler<PIO0>;
+    PIO0_IRQ_0 => embassy_rp::pio::InterruptHandler<PIO0>;
 });
 
 bind_interrupts!(struct UsbIrqs {
@@ -90,7 +90,7 @@ async fn main(spawner: Spawner) {
 
     // Use a link-local address for communication without DHCP server
     // FIXME: should pick an unused link-local address here per the protocol
-    let config = Config::ipv4_static(embassy_net::StaticConfigV4 {
+    let net_config = embassy_net::Config::ipv4_static(embassy_net::StaticConfigV4 {
         address: embassy_net::Ipv4Cidr::new(embassy_net::Ipv4Address::new(169, 254, 1, 1), 16),
         dns_servers: heapless::Vec::new(),
         gateway: None,
@@ -102,7 +102,7 @@ async fn main(spawner: Spawner) {
     // Init network stack
     let stack = &*make_static!(Stack::new(
         net_device,
-        config,
+        net_config,
         make_static!(StackResources::<2>::new()),
         seed
     ));
@@ -125,9 +125,9 @@ async fn main(spawner: Spawner) {
     let cc1101_clk = p.PIN_2;
     let cc1101_cs = p.PIN_1;
 
-    let mut config = embassy_rp::spi::Config::default();
-    config.frequency = 5_000_000;
-    let cc1101_spi = embassy_rp::spi::Spi::new_blocking(p.SPI0, cc1101_clk, cc1101_mosi, cc1101_miso, config);
+    let mut spi_config = embassy_rp::spi::Config::default();
+    spi_config.frequency = 5_000_000;
+    let cc1101_spi = embassy_rp::spi::Spi::new_blocking(p.SPI0, cc1101_clk, cc1101_mosi, cc1101_miso, spi_config);
 
     let cc1101_cs = Output::new(cc1101_cs, Level::Low);
 
