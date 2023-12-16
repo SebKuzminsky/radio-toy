@@ -1,6 +1,5 @@
-//! This example test the RP Pico W on board LED.
-//!
-//! It does not work with the RP Pico board. See blinky.rs.
+//! This is a firmware for the Raspberry Pi Pico-W that talks to a CC1101
+//! radio controller.
 
 #![no_std]
 #![no_main]
