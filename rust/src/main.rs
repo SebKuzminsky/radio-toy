@@ -63,8 +63,8 @@ async fn main(spawner: Spawner) {
     // Set up the Wifi.
     //
 
-    let fw = include_bytes!("../submodules/embassy/cyw43-firmware/43439A0.bin");
-    let clm = include_bytes!("../submodules/embassy/cyw43-firmware/43439A0_clm.bin");
+    let fw = include_bytes!("../../submodules/embassy/cyw43-firmware/43439A0.bin");
+    let clm = include_bytes!("../../submodules/embassy/cyw43-firmware/43439A0_clm.bin");
 
     // To make flashing faster for development, you may want to flash the firmwares independently
     // at hardcoded addresses, instead of baking them into the program with `include_bytes!`:
