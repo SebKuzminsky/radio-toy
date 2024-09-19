@@ -20,6 +20,10 @@ solderable through holes instead of the pin header may be preferable.
 
 * [Semtech Sx1276](https://www.semtech.com/products/wireless-rf/lora-connect/sx1276)
 
+* [nRF24L01](https://www.nordicsemi.com/Products/nRF24-series)
+"Not recommended for new designs", but it's hard to argue with $1 boards from ebay.
+<https://www.sparkfun.com/datasheets/Components/SMD/nRF24L01Pluss_Preliminary_Product_Specification_v1_0.pdf>
+
 
 ## Tethered or untethered?
 
