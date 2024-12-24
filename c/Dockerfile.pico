@@ -37,3 +37,10 @@ RUN ( \
     ./pico_setup.sh; \
     rm -f pico_setup.sh; \
 )
+
+# Install all of picotool, this works around
+# <https://github.com/raspberrypi/pico-setup/issues/42>
+RUN ( \
+    cd /opt/pico/picotool/build; \
+    make install; \
+)
