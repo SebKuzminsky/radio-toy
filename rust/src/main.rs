@@ -4,20 +4,24 @@
 #![no_std]
 #![no_main]
 #![feature(type_alias_impl_trait)]
+#![feature(impl_trait_in_assoc_type)]
 #![allow(async_fn_in_trait)]
 
 use cc1101;
+
 use cyw43_pio::PioSpi;
 use defmt::*;
 use embassy_executor::Spawner;
-use embassy_net::{Stack, StackResources};
+use embassy_net::StackResources;
 use embassy_rp::bind_interrupts;
+use embassy_rp::clocks::RoscRng;
 use embassy_rp::gpio::{Level, Output};
 use embassy_rp::peripherals::USB;
-use embassy_rp::peripherals::{DMA_CH0, PIN_23, PIN_25, PIO0};
+use embassy_rp::peripherals::{DMA_CH0, PIO0};
 use embassy_rp::pio::Pio;
 use embedded_io_async::Write;
-use static_cell::make_static;
+use rand::RngCore;
+use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
 
 bind_interrupts!(struct Pio0Irqs {
@@ -29,19 +33,15 @@ bind_interrupts!(struct UsbIrqs {
 });
 
 #[embassy_executor::task]
-async fn wifi_task(
-    runner: cyw43::Runner<
-        'static,
-        Output<'static, PIN_23>,
-        PioSpi<'static, PIN_25, PIO0, 0, DMA_CH0>,
-    >,
+async fn cyw43_task(
+    runner: cyw43::Runner<'static, Output<'static>, PioSpi<'static, PIO0, 0, DMA_CH0>>,
 ) -> ! {
     runner.run().await
 }
 
 #[embassy_executor::task]
-async fn net_task(stack: &'static Stack<cyw43::NetDriver<'static>>) -> ! {
-    stack.run().await
+async fn net_task(mut runner: embassy_net::Runner<'static, cyw43::NetDriver<'static>>) -> ! {
+    runner.run().await
 }
 
 #[embassy_executor::task]
@@ -52,6 +52,8 @@ async fn logger_task(driver: embassy_rp::usb::Driver<'static, USB>) {
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
     let p = embassy_rp::init(Default::default());
+
+    let mut rng: RoscRng = RoscRng;
 
     //
     // Set up logging to USB serial port.
@@ -87,9 +89,10 @@ async fn main(spawner: Spawner) {
         p.DMA_CH0,
     );
 
-    let state = make_static!(cyw43::State::new());
+    static STATE: StaticCell<cyw43::State> = StaticCell::new();
+    let state: &mut cyw43::State = STATE.init(cyw43::State::new());
     let (net_device, mut cyw43_control, cyw43_runner) = cyw43::new(state, pwr, spi, fw).await;
-    unwrap!(spawner.spawn(wifi_task(cyw43_runner)));
+    unwrap!(spawner.spawn(cyw43_task(cyw43_runner)));
 
     cyw43_control.init(clm).await;
     cyw43_control
@@ -105,17 +108,18 @@ async fn main(spawner: Spawner) {
     });
 
     // Generate random seed
-    let seed = 0x0123_4567_89ab_cdef; // chosen by fair dice roll. guarenteed to be random.
+    let seed: u64 = rng.next_u64();
 
     // Init network stack
-    let stack = &*make_static!(Stack::new(
+    static RESOURCES: StaticCell<StackResources<3>> = StaticCell::new();
+    let (stack, runner) = embassy_net::new(
         net_device,
         net_config,
-        make_static!(StackResources::<2>::new()),
-        seed
-    ));
+        RESOURCES.init(StackResources::new()),
+        seed,
+    );
 
-    unwrap!(spawner.spawn(net_task(stack)));
+    unwrap!(spawner.spawn(net_task(runner)));
 
     cyw43_control.start_ap_open("pico", 5).await;
     //control.start_ap_wpa2("pico", "password", 5).await;
@@ -133,7 +137,8 @@ async fn main(spawner: Spawner) {
 
     let mut spi_config = embassy_rp::spi::Config::default();
     spi_config.frequency = 5_000_000;
-    let cc1101_spi = embassy_rp::spi::Spi::new_blocking(
+
+    let cc1101_spi_bus = embassy_rp::spi::Spi::new_blocking(
         p.SPI0,
         cc1101_clk,
         cc1101_mosi,
@@ -143,7 +148,10 @@ async fn main(spawner: Spawner) {
 
     let cc1101_cs = Output::new(cc1101_cs, Level::Low);
 
-    let mut cc1101_handle = cc1101::Cc1101::new(cc1101_spi, cc1101_cs).unwrap();
+    let cc1101_spi_device =
+        embedded_hal_bus::spi::ExclusiveDevice::new_no_delay(cc1101_spi_bus, cc1101_cs);
+
+    let mut cc1101_handle = cc1101::Cc1101::new(cc1101_spi_device).unwrap();
 
     //
     // Configure the CC1101 for OOK at 433 MHz, 3 kbaud.
@@ -335,7 +343,7 @@ async fn main(spawner: Spawner) {
     // Flush the TX FIFO
     cc1101_handle
         .0
-        .write_strobe(cc1101::lowlevel::registers::Command::SFTX)
+        .write_cmd_strobe(cc1101::lowlevel::registers::Command::SFTX)
         .unwrap();
 
     let tx_bytes = cc1101_handle
@@ -443,7 +451,7 @@ async fn main(spawner: Spawner) {
 
     cc1101_handle
         .0
-        .write_strobe(cc1101::lowlevel::registers::Command::STX)
+        .write_cmd_strobe(cc1101::lowlevel::registers::Command::STX)
         .unwrap();
     cc1101_handle
         .await_machine_state(cc1101::lowlevel::types::MachineState::IDLE)
