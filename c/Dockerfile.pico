@@ -11,6 +11,11 @@ RUN ( \
     apt --quiet update; \
     apt install --quiet --yes \
         bash-completion \
+        build-essential \
+        cmake \
+        gcc-arm-none-eabi \
+        libnewlib-arm-none-eabi \
+        libstdc++-arm-none-eabi-newlib \
         pkg-config \
         python3 \
         sudo \
