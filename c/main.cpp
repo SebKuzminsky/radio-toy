@@ -242,7 +242,7 @@ int main() {
     uint8_t statuses[100];
 
     stdio_init_all();
-    clocks_init();
+    // clocks_init();
 
     // sleep_ms(3*1000);  // wait for minicom to reconnect to the pico's serial port
 
