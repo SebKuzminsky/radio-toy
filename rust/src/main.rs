@@ -124,6 +124,7 @@ async fn main(spawner: Spawner) {
     cyw43_control.start_ap_open("pico", 5).await;
     //control.start_ap_wpa2("pico", "password", 5).await;
 
+    // Wait a bit to let the serial terminal reconnect.
     embassy_time::Timer::after(embassy_time::Duration::from_secs(3)).await;
 
     //
@@ -164,14 +165,24 @@ async fn main(spawner: Spawner) {
     // let r = cc1101_handle.0.read_register(cc1101::lowlevel::registers::Config::FIFOTHR).unwrap();
     // log::info!("FIFOTHR 0x{r:02x}");
 
+    // ADC_RETENTION = 1: not important for this application
+    // CLOSE_IN_RX = 0b00: not sure about this one
+    // FIFO_THR = 0b000: 61 bytes TX FIFO, 4 bytes RX FIFO, this is what we actually care about
     cc1101_handle
         .0
         .write_register(cc1101::lowlevel::registers::Config::FIFOTHR, 0x40)
         .unwrap();
+
+    // PACKET_LENGTH = 4 bytes: FIXME: seems low...
     cc1101_handle
         .0
         .write_register(cc1101::lowlevel::registers::Config::PKTLEN, 0x04)
         .unwrap();
+
+    // PQT = 0: disable preamble quality estimator threshold, not because this application is TX only
+    // CRC_AUTOFLUSH = 0: don't flush RX FIFO on CRC failure
+    // APPEND_STATUS = 1: append RSSI and LQI to received packets, not used for this application
+    // ADR_CHK = 0: no address check
     cc1101_handle
         .0
         .write_register(cc1101::lowlevel::registers::Config::PKTCTRL1, 0x04)
@@ -186,10 +197,12 @@ async fn main(spawner: Spawner) {
         .0
         .write_register(cc1101::lowlevel::registers::Config::PKTCTRL0, 0x00)
         .unwrap();
+
     cc1101_handle
         .0
         .write_register(cc1101::lowlevel::registers::Config::ADDR, 0x00)
         .unwrap();
+
     cc1101_handle
         .0
         .write_register(cc1101::lowlevel::registers::Config::CHANNR, 0x00)
@@ -209,7 +222,7 @@ async fn main(spawner: Spawner) {
         .unwrap();
 
     // Set the carrier frequency to 433.920 MHz.
-    cc1101_handle.set_frequency(433_920_000u64).unwrap();
+    cc1101_handle.set_frequency(433_920_000).unwrap();
 
     // Input bandwidth, ~203 kHz
     cc1101_handle
@@ -217,7 +230,7 @@ async fn main(spawner: Spawner) {
         .write_register(cc1101::lowlevel::registers::Config::MDMCFG4, 0x8c)
         .unwrap();
 
-    cc1101_handle.set_data_rate(115200u64).unwrap();
+    cc1101_handle.set_data_rate(115_200).unwrap();
 
     // Set modem to ASK/OOK
     // 0x30: ook, no preamble
@@ -273,6 +286,7 @@ async fn main(spawner: Spawner) {
         .0
         .write_register(cc1101::lowlevel::registers::Config::AGCCTRL1, 0x00)
         .unwrap();
+
     cc1101_handle
         .0
         .write_register(cc1101::lowlevel::registers::Config::AGCCTRL0, 0x91)
@@ -282,14 +296,17 @@ async fn main(spawner: Spawner) {
         .0
         .write_register(cc1101::lowlevel::registers::Config::FSCAL3, 0xea)
         .unwrap();
+
     cc1101_handle
         .0
         .write_register(cc1101::lowlevel::registers::Config::FSCAL2, 0x2a)
         .unwrap();
+
     cc1101_handle
         .0
         .write_register(cc1101::lowlevel::registers::Config::FSCAL1, 0x00)
         .unwrap();
+
     cc1101_handle
         .0
         .write_register(cc1101::lowlevel::registers::Config::FSCAL0, 0x1f)
@@ -318,10 +335,12 @@ async fn main(spawner: Spawner) {
         .0
         .write_register(cc1101::lowlevel::registers::Config::TEST2, 0x88)
         .unwrap();
+
     cc1101_handle
         .0
         .write_register(cc1101::lowlevel::registers::Config::TEST1, 0x31)
         .unwrap();
+
     cc1101_handle
         .0
         .write_register(cc1101::lowlevel::registers::Config::TEST0, 0x09)
@@ -441,18 +460,25 @@ async fn main(spawner: Spawner) {
         0xe8, 0xee,
     ];
 
-    for byte in data {
-        log::info!("writing to FIFO: 0x{:02x}", byte);
+    loop {
+        log::info!("ping!");
+
+        for byte in data {
+            log::info!("writing to FIFO: 0x{:02x}", byte);
+            cc1101_handle
+                .0
+                .write_register(cc1101::lowlevel::registers::Command::FIFO, byte)
+                .unwrap();
+        }
+
         cc1101_handle
             .0
-            .write_register(cc1101::lowlevel::registers::Command::FIFO, byte)
+            .write_cmd_strobe(cc1101::lowlevel::registers::Command::STX)
             .unwrap();
+
+        embassy_time::Timer::after(embassy_time::Duration::from_secs(1)).await;
     }
 
-    cc1101_handle
-        .0
-        .write_cmd_strobe(cc1101::lowlevel::registers::Command::STX)
-        .unwrap();
     cc1101_handle
         .await_machine_state(cc1101::lowlevel::types::MachineState::IDLE)
         .unwrap();
