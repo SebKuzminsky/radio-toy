@@ -52,21 +52,29 @@ struct InputBuffer {
 }
 
 impl InputBuffer {
-    async fn handle(&self) {
-        let s = core::str::from_utf8(&self.buf[0..self.index]);
-        match s {
-            Ok(s) => {
-                log::info!(
-                    "got line ({} chars, index={}): '{}'",
-                    s.chars().count(),
-                    self.index,
-                    s
-                );
-                for substr in s.split_whitespace() {
-                    log::info!("    substr: '{}'", substr);
-                }
-            }
+    async fn handle_line(&self) {
+        let s = match core::str::from_utf8(&self.buf[0..self.index]) {
+            Ok(s) => s,
             Err(_) => return,
+        };
+
+        log::info!("got line: '{}'", s);
+        let mut tokens = s.split_whitespace();
+        let cmd = match tokens.next() {
+            Some(cmd) => cmd,
+            None => return,
+        };
+        match cmd {
+            cmd if "bootloader".eq_ignore_ascii_case(cmd) => {
+                log::info!("resetting to bootloader");
+                embassy_rp::rom_data::reset_to_usb_boot(0, 0);
+            }
+            cmd if "ping".eq_ignore_ascii_case(cmd) => {
+                log::info!("pong");
+            }
+            _ => {
+                log::info!("unknown command '{}'", cmd);
+            }
         }
     }
 }
@@ -90,27 +98,24 @@ impl ReceiverHandler for USBSerialHandler {
 
     async fn handle_data(&self, data: &[u8]) {
         let mut locked_input_buffer = self.input_buffer.lock().await;
-        log::info!("got data: {:?}", data);
         for b in data {
-            log::info!("    byte '{}'", b);
-            log::info!("    char '{}'", *b as char);
             if *b == b'\n' {
-                locked_input_buffer.handle().await;
+                locked_input_buffer.handle_line().await;
                 locked_input_buffer.index = 0;
             } else {
+                log::info!("{}", *b as char);
                 let i = locked_input_buffer.index;
                 locked_input_buffer.buf[i] = *b;
                 locked_input_buffer.index += 1;
                 if locked_input_buffer.index >= IN_BUF_SIZE {
                     log::info!(
-                        "in buffer overflow, resetting: {:?}",
+                        "input buffer overflow, resetting: {:?}",
                         locked_input_buffer.buf
                     );
                     locked_input_buffer.index = 0;
                 }
             }
         }
-
     }
 }
 
