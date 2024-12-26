@@ -53,7 +53,21 @@ struct InputBuffer {
 
 impl InputBuffer {
     async fn handle(&self) {
-        log::info!("got line ({} bytes): [{:?}]", self.index, self.buf);
+        let s = core::str::from_utf8(&self.buf[0..self.index]);
+        match s {
+            Ok(s) => {
+                log::info!(
+                    "got line ({} chars, index={}): '{}'",
+                    s.chars().count(),
+                    self.index,
+                    s
+                );
+                for substr in s.split_whitespace() {
+                    log::info!("    substr: '{}'", substr);
+                }
+            }
+            Err(_) => return,
+        }
     }
 }
 
@@ -65,33 +79,38 @@ struct USBSerialHandler {
 }
 
 impl ReceiverHandler for USBSerialHandler {
-    async fn handle_data(&self, data: &[u8]) {
-        let mut input_buffer = self.input_buffer.lock().await;
-        log::info!("got data: [{:?}]", data);
-        for b in data {
-            log::info!("    {:?}", b);
-            if *b == b'\n' {
-                input_buffer.handle().await;
-                input_buffer.index = 0;
-            } else {
-                let i = input_buffer.index;
-                input_buffer.buf[i] = *b;
-                input_buffer.index += 1;
-                if input_buffer.index >= IN_BUF_SIZE {
-                    log::info!("in buffer overflow, resetting: {:?}", input_buffer.buf);
-                    input_buffer.index = 0;
-                }
-            }
-        }
-    }
-
     fn new() -> Self {
         Self {
             input_buffer: embassy_sync::mutex::Mutex::new(InputBuffer {
-                buf: [0; 64],
+                buf: [0; IN_BUF_SIZE],
                 index: 0,
             }),
         }
+    }
+
+    async fn handle_data(&self, data: &[u8]) {
+        let mut locked_input_buffer = self.input_buffer.lock().await;
+        log::info!("got data: {:?}", data);
+        for b in data {
+            log::info!("    byte '{}'", b);
+            log::info!("    char '{}'", *b as char);
+            if *b == b'\n' {
+                locked_input_buffer.handle().await;
+                locked_input_buffer.index = 0;
+            } else {
+                let i = locked_input_buffer.index;
+                locked_input_buffer.buf[i] = *b;
+                locked_input_buffer.index += 1;
+                if locked_input_buffer.index >= IN_BUF_SIZE {
+                    log::info!(
+                        "in buffer overflow, resetting: {:?}",
+                        locked_input_buffer.buf
+                    );
+                    locked_input_buffer.index = 0;
+                }
+            }
+        }
+
     }
 }
 
@@ -512,10 +531,10 @@ async fn main(spawner: Spawner) {
     ];
 
     loop {
-        log::info!("ping!");
+        // log::info!("ping!");
 
         for byte in data {
-            log::info!("writing to FIFO: 0x{:02x}", byte);
+            // log::info!("writing to FIFO: 0x{:02x}", byte);
             cc1101_handle
                 .0
                 .write_register(cc1101::lowlevel::registers::Command::FIFO, byte)
