@@ -19,6 +19,7 @@ use embassy_rp::gpio::{Level, Output};
 use embassy_rp::peripherals::USB;
 use embassy_rp::peripherals::{DMA_CH0, PIO0};
 use embassy_rp::pio::Pio;
+use embassy_usb_logger::ReceiverHandler;
 use embedded_io_async::Write;
 use rand::RngCore;
 use static_cell::StaticCell;
@@ -44,9 +45,59 @@ async fn net_task(mut runner: embassy_net::Runner<'static, cyw43::NetDriver<'sta
     runner.run().await
 }
 
+const IN_BUF_SIZE: usize = 64;
+struct InputBuffer {
+    buf: [u8; IN_BUF_SIZE],
+    index: usize,
+}
+
+impl InputBuffer {
+    async fn handle(&self) {
+        log::info!("got line ({} bytes): [{:?}]", self.index, self.buf);
+    }
+}
+
+struct USBSerialHandler {
+    input_buffer: embassy_sync::mutex::Mutex<
+        embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
+        InputBuffer,
+    >,
+}
+
+impl ReceiverHandler for USBSerialHandler {
+    async fn handle_data(&self, data: &[u8]) {
+        let mut input_buffer = self.input_buffer.lock().await;
+        log::info!("got data: [{:?}]", data);
+        for b in data {
+            log::info!("    {:?}", b);
+            if *b == b'\n' {
+                input_buffer.handle().await;
+                input_buffer.index = 0;
+            } else {
+                let i = input_buffer.index;
+                input_buffer.buf[i] = *b;
+                input_buffer.index += 1;
+                if input_buffer.index >= IN_BUF_SIZE {
+                    log::info!("in buffer overflow, resetting: {:?}", input_buffer.buf);
+                    input_buffer.index = 0;
+                }
+            }
+        }
+    }
+
+    fn new() -> Self {
+        Self {
+            input_buffer: embassy_sync::mutex::Mutex::new(InputBuffer {
+                buf: [0; 64],
+                index: 0,
+            }),
+        }
+    }
+}
+
 #[embassy_executor::task]
 async fn logger_task(driver: embassy_rp::usb::Driver<'static, USB>) {
-    embassy_usb_logger::run!(1024, log::LevelFilter::Info, driver);
+    embassy_usb_logger::run!(1024, log::LevelFilter::Info, driver, USBSerialHandler);
 }
 
 #[embassy_executor::main]
