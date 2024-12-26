@@ -52,6 +52,22 @@ struct InputBuffer {
 }
 
 impl InputBuffer {
+    async fn handle_char(&mut self, b: u8) {
+        if b == b'\n' {
+            self.handle_line().await;
+            self.index = 0;
+        } else {
+            log::info!("{}", b as char);
+            let i = self.index;
+            self.buf[i] = b;
+            self.index += 1;
+            if self.index >= IN_BUF_SIZE {
+                log::info!("input buffer overflow, resetting: {:?}", self.buf);
+                self.index = 0;
+            }
+        }
+    }
+
     async fn handle_line(&self) {
         let s = match core::str::from_utf8(&self.buf[0..self.index]) {
             Ok(s) => s,
@@ -99,22 +115,7 @@ impl ReceiverHandler for USBSerialHandler {
     async fn handle_data(&self, data: &[u8]) {
         let mut locked_input_buffer = self.input_buffer.lock().await;
         for b in data {
-            if *b == b'\n' {
-                locked_input_buffer.handle_line().await;
-                locked_input_buffer.index = 0;
-            } else {
-                log::info!("{}", *b as char);
-                let i = locked_input_buffer.index;
-                locked_input_buffer.buf[i] = *b;
-                locked_input_buffer.index += 1;
-                if locked_input_buffer.index >= IN_BUF_SIZE {
-                    log::info!(
-                        "input buffer overflow, resetting: {:?}",
-                        locked_input_buffer.buf
-                    );
-                    locked_input_buffer.index = 0;
-                }
-            }
+            locked_input_buffer.handle_char(*b).await;
         }
     }
 }
