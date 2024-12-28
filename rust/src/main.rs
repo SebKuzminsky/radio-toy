@@ -234,19 +234,8 @@ async fn main(spawner: Spawner) {
     // Configure the CC1101 for OOK at 433 MHz, 3 kbaud.
     //
 
-    // FIFOTHR:
-    //     RX filter bandwidth > 325 kHz, FIFOTHR = 0x07
-    //     RX filter bandwidth ≤ 325 kHz, FIFOTHR = 0x47
-
-    // let r = cc1101_handle.0.read_register(cc1101::lowlevel::registers::Config::FIFOTHR).unwrap();
-    // log::info!("FIFOTHR 0x{r:02x}");
-
-    // ADC_RETENTION = 1: not important for this application
-    // CLOSE_IN_RX = 0b00: not sure about this one
-    // FIFO_THR = 0b000: 61 bytes TX FIFO, 4 bytes RX FIFO, this is what we actually care about
     cc1101_handle
-        .0
-        .write_register(cc1101::lowlevel::registers::Config::FIFOTHR, 0x40)
+        .set_fifo_threshold(true, 0, cc1101::FifoThreshold::TX_61_RX_4)
         .unwrap();
 
     // PACKET_LENGTH = 4 bytes: FIXME: seems low...
