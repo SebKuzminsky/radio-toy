@@ -538,7 +538,7 @@ async fn main(spawner: Spawner) {
             // log::info!("writing to FIFO: 0x{:02x}", byte);
             cc1101_handle
                 .0
-                .write_register(cc1101::lowlevel::registers::Command::FIFO, byte)
+                .write_register(cc1101::lowlevel::registers::MultiByte::FIFO, byte)
                 .unwrap();
         }
 
