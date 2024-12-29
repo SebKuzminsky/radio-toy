@@ -468,7 +468,7 @@ async fn main(spawner: Spawner) -> ! {
     let mut usb_serial_command_parser = command_parser::Parser::new();
 
     loop {
-        match embassy_futures::select::select(
+        let command: Option<command_parser::Command> = match embassy_futures::select::select(
             NET_COMMAND_CHANNEL.receiver().receive(),
             USB_SERIAL_INPUT_CHANNEL.receive(),
         )
@@ -476,6 +476,7 @@ async fn main(spawner: Spawner) -> ! {
         {
             embassy_futures::select::Either::First(command) => {
                 log::info!("command from tcp: {:?}", command);
+                Some(command)
             }
 
             embassy_futures::select::Either::Second(b) => {
@@ -483,10 +484,23 @@ async fn main(spawner: Spawner) -> ! {
                 match usb_serial_command_parser.ingest(b) {
                     Some(command) => {
                         log::info!("USB command {:?}", command);
+                        Some(command)
                     }
-                    None => {}
+                    None => None,
                 }
             }
+        };
+
+        match command {
+            Some(command_parser::Command::Ping) => {
+                log::info!("Pong");
+            }
+
+            Some(command_parser::Command::TxPreambleBytes(n)) => {
+                log::info!("tx-preamble-bytes {}", n);
+            }
+
+            None => {}
         }
 
         // log::info!("ping!");

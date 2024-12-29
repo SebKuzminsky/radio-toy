@@ -3,6 +3,7 @@ const BUF_SIZE: usize = 64;
 #[derive(Debug)]
 pub enum Command {
     Ping,
+    TxPreambleBytes(u8),
 }
 
 pub struct Parser {
@@ -59,10 +60,24 @@ impl Parser {
                 embassy_rp::rom_data::reset_to_usb_boot(0, 0);
                 unreachable!();
             }
+
             cmd if "ping".eq_ignore_ascii_case(cmd) => {
                 log::info!("pong");
                 Some(Command::Ping)
             }
+
+            cmd if "tx-preamble-bytes".eq_ignore_ascii_case(cmd) => match tokens.next() {
+                Some(t) => match t.parse::<u8>() {
+                    Ok(num_bytes) => Some(Command::TxPreambleBytes(num_bytes)),
+
+                    Err(e) => {
+                        log::error!("failed to parse tx-preamble-bytes from {}: {}", t, e);
+                        None
+                    }
+                },
+                None => None,
+            },
+
             _ => {
                 log::info!("unknown command '{}'", cmd);
                 None
