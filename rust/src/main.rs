@@ -20,7 +20,7 @@ use embassy_rp::peripherals::USB;
 use embassy_rp::peripherals::{DMA_CH0, PIO0};
 use embassy_rp::pio::Pio;
 use embassy_usb_logger::ReceiverHandler;
-// use embedded_io_async::Write;
+use embedded_io_async::Write;
 use rand::RngCore;
 use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
@@ -546,7 +546,7 @@ async fn main(spawner: Spawner) {
 
                     log::info!("rxd {}", core::str::from_utf8(&buf[..n]).unwrap());
 
-                    match socket.write(&buf[..n]).await {
+                    match socket.write_all(&buf[..n]).await {
                         Ok(_) => {}
                         Err(e) => {
                             log::warn!("write error: {:?}", e);
