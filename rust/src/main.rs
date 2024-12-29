@@ -228,18 +228,18 @@ async fn main(spawner: Spawner) {
     let cc1101_spi_device =
         embedded_hal_bus::spi::ExclusiveDevice::new_no_delay(cc1101_spi_bus, cc1101_cs);
 
-    let mut cc1101_handle = cc1101::Cc1101::new(cc1101_spi_device).unwrap();
+    let mut cc1101 = cc1101::Cc1101::new(cc1101_spi_device).unwrap();
 
     //
     // Configure the CC1101 for OOK at 433 MHz, 3 kbaud.
     //
 
-    cc1101_handle
+    cc1101
         .set_fifo_threshold(true, 0, cc1101::FifoThreshold::TX_61_RX_4)
         .unwrap();
 
     // PACKET_LENGTH = 4 bytes: FIXME: seems low...
-    cc1101_handle
+    cc1101
         .0
         .write_register(cc1101::lowlevel::registers::Config::PKTLEN, 0x04)
         .unwrap();
@@ -248,7 +248,7 @@ async fn main(spawner: Spawner) {
     // CRC_AUTOFLUSH = 0: don't flush RX FIFO on CRC failure
     // APPEND_STATUS = 1: append RSSI and LQI to received packets, not used for this application
     // ADR_CHK = 0: no address check
-    cc1101_handle
+    cc1101
         .0
         .write_register(cc1101::lowlevel::registers::Config::PKTCTRL1, 0x04)
         .unwrap();
@@ -258,17 +258,17 @@ async fn main(spawner: Spawner) {
     // * use FIFOs for Rx and Tx
     // * disable CRC calculation on Tx and CRC check on Rx
     // * fixed packet length specified by PKTLEN register
-    cc1101_handle
+    cc1101
         .0
         .write_register(cc1101::lowlevel::registers::Config::PKTCTRL0, 0x00)
         .unwrap();
 
-    cc1101_handle
+    cc1101
         .0
         .write_register(cc1101::lowlevel::registers::Config::ADDR, 0x00)
         .unwrap();
 
-    cc1101_handle
+    cc1101
         .0
         .write_register(cc1101::lowlevel::registers::Config::CHANNR, 0x00)
         .unwrap();
@@ -276,45 +276,45 @@ async fn main(spawner: Spawner) {
     // Set IF (intermediate frequency).
     // FIXME
 
-    cc1101_handle
+    cc1101
         .0
         .write_register(cc1101::lowlevel::registers::Config::FSCTRL1, 0x0c)
         .unwrap();
 
-    cc1101_handle
+    cc1101
         .0
         .write_register(cc1101::lowlevel::registers::Config::FSCTRL0, 0x00)
         .unwrap();
 
     // Input bandwidth, ~203 kHz
-    cc1101_handle
+    cc1101
         .0
         .write_register(cc1101::lowlevel::registers::Config::MDMCFG4, 0x8c)
         .unwrap();
 
-    cc1101_handle.set_data_rate(115_200).unwrap();
+    cc1101.set_data_rate(115_200).unwrap();
 
     // Set modem to ASK/OOK
     // 0x30: ook, no preamble
     // 0x33: ook, preamble
-    cc1101_handle
+    cc1101
         .0
         .write_register(cc1101::lowlevel::registers::Config::MDMCFG2, 0x33)
         .unwrap();
 
     // Disable FEC, 2 preamble bytes
-    cc1101_handle
+    cc1101
         .0
         .write_register(cc1101::lowlevel::registers::Config::MDMCFG1, 0x22)
         .unwrap();
 
-    cc1101_handle
+    cc1101
         .0
         .write_register(cc1101::lowlevel::registers::Config::MDMCFG0, 0xf8)
         .unwrap();
 
     // Not used for OOK
-    cc1101_handle
+    cc1101
         .0
         .write_register(cc1101::lowlevel::registers::Config::DEVIATN, 0x62)
         .unwrap();
@@ -323,14 +323,14 @@ async fn main(spawner: Spawner) {
     // * CCA_MODE=3 ??
     // * RXOFF_MODE=0 (go to IDLE after receiving a packet)
     // * TXOFF_MODE=0 (go to IDLE after transmitting a packet)
-    cc1101_handle
+    cc1101
         .0
         .write_register(cc1101::lowlevel::registers::Config::MCSM1, 0x30)
         .unwrap();
 
     // Main Radio Control State Machine Configuration 0:
     // * FS_AUTOCAL=3 (calibrate every 4th time when going from RX or TX to IDLE)
-    cc1101_handle
+    cc1101
         .0
         .write_register(cc1101::lowlevel::registers::Config::MCSM0, 0x30)
         .unwrap();
@@ -340,37 +340,37 @@ async fn main(spawner: Spawner) {
     // * AGCCTRL1 = 0x00
     // * AGCCTRL0 = 0x91 or 0x92
 
-    cc1101_handle
+    cc1101
         .0
         .write_register(cc1101::lowlevel::registers::Config::AGCCTRL2, 0x03)
         .unwrap();
 
-    cc1101_handle
+    cc1101
         .0
         .write_register(cc1101::lowlevel::registers::Config::AGCCTRL1, 0x00)
         .unwrap();
 
-    cc1101_handle
+    cc1101
         .0
         .write_register(cc1101::lowlevel::registers::Config::AGCCTRL0, 0x91)
         .unwrap();
 
-    cc1101_handle
+    cc1101
         .0
         .write_register(cc1101::lowlevel::registers::Config::FSCAL3, 0xea)
         .unwrap();
 
-    cc1101_handle
+    cc1101
         .0
         .write_register(cc1101::lowlevel::registers::Config::FSCAL2, 0x2a)
         .unwrap();
 
-    cc1101_handle
+    cc1101
         .0
         .write_register(cc1101::lowlevel::registers::Config::FSCAL1, 0x00)
         .unwrap();
 
-    cc1101_handle
+    cc1101
         .0
         .write_register(cc1101::lowlevel::registers::Config::FSCAL0, 0x1f)
         .unwrap();
@@ -385,50 +385,50 @@ async fn main(spawner: Spawner) {
     //     RX filter bandwidth > 325 kHz, TEST1 = 0x31
     //     RX filter bandwidth ≤ 325 kHz, TEST1 = 0x35
 
-    cc1101_handle
+    cc1101
         .0
         .write_register(cc1101::lowlevel::registers::Config::FREND1, 0xb6)
         .unwrap();
-    cc1101_handle
+    cc1101
         .0
         .write_register(cc1101::lowlevel::registers::Config::FREND0, 0x11)
         .unwrap();
 
-    cc1101_handle
+    cc1101
         .0
         .write_register(cc1101::lowlevel::registers::Config::TEST2, 0x88)
         .unwrap();
 
-    cc1101_handle
+    cc1101
         .0
         .write_register(cc1101::lowlevel::registers::Config::TEST1, 0x31)
         .unwrap();
 
-    cc1101_handle
+    cc1101
         .0
         .write_register(cc1101::lowlevel::registers::Config::TEST0, 0x09)
         .unwrap();
 
-    cc1101_handle
+    cc1101
         .0
         .write_register(cc1101::lowlevel::registers::Config::FOCCFG, 0x1d)
         .unwrap();
 
-    cc1101_handle
+    cc1101
         .0
         .write_register(cc1101::lowlevel::registers::Config::BSCFG, 0x1c)
         .unwrap();
 
     let patable_values: [u8; 2] = [0x00, 0xc6];
-    cc1101_handle.write_patable(&patable_values).unwrap();
+    cc1101.write_patable(&patable_values).unwrap();
 
     // Flush the TX FIFO
-    cc1101_handle
+    cc1101
         .0
         .write_cmd_strobe(cc1101::lowlevel::registers::Command::SFTX)
         .unwrap();
 
-    let tx_bytes = cc1101_handle
+    let tx_bytes = cc1101
         .0
         .read_register(cc1101::lowlevel::registers::Status::TXBYTES)
         .unwrap();
@@ -453,7 +453,7 @@ async fn main(spawner: Spawner) {
     // _pad == 0 (0x00)
     // chanspc_en = 2 (0x02)
 
-    // let old_v = cc1101_handle
+    // let old_v = cc1101
     //     .0
     //     .read_register(cc1101::lowlevel::registers::Config::MDMCFG1)
     //     .unwrap();
@@ -466,18 +466,18 @@ async fn main(spawner: Spawner) {
 
     // log::info!("MDMCFG1 is {:02x}", v);
 
-    cc1101_handle
+    cc1101
         .0
         .write_register(cc1101::lowlevel::registers::Config::MDMCFG1, 0x32)
         .unwrap();
 
     // "sync-word-msb": 0,
     // "sync-word-lsb": 0,
-    cc1101_handle
+    cc1101
         .0
         .write_register(cc1101::lowlevel::registers::Config::SYNC1, 0x00)
         .unwrap();
-    cc1101_handle
+    cc1101
         .0
         .write_register(cc1101::lowlevel::registers::Config::SYNC0, 0x00)
         .unwrap();
@@ -488,25 +488,23 @@ async fn main(spawner: Spawner) {
     let manchester_en: u8 = 0;
     let sync_mode: u8 = 3;
     let v: u8 = (dem_dcfilt_off << 7) | (mod_format << 4) | (manchester_en << 3) | (sync_mode);
-    cc1101_handle
+    cc1101
         .0
         .write_register(cc1101::lowlevel::registers::Config::MDMCFG2, v)
         .unwrap();
 
     // Set the carrier frequency to 433.920 MHz.
-    cc1101_handle.set_frequency(433_920_000).unwrap();
+    cc1101.set_frequency(433_920_000).unwrap();
 
     // Calibrate the frequency synthesizer.
-    cc1101_handle
-        .set_radio_mode(cc1101::RadioMode::Calibrate)
-        .unwrap();
+    cc1101.set_radio_mode(cc1101::RadioMode::Calibrate).unwrap();
 
     // Set baud rate to 3175.
-    cc1101_handle.set_data_rate(3_175).unwrap();
+    cc1101.set_data_rate(3_175).unwrap();
 
     // Set packet length to 32.
     // FIXME: not sure if this is needed since we trigger TX explicitly.
-    cc1101_handle
+    cc1101
         .0
         .write_register(cc1101::lowlevel::registers::Config::PKTLEN, 32)
         .unwrap();
@@ -523,13 +521,13 @@ async fn main(spawner: Spawner) {
 
         for byte in data {
             // log::info!("writing to FIFO: 0x{:02x}", byte);
-            cc1101_handle
+            cc1101
                 .0
                 .write_register(cc1101::lowlevel::registers::MultiByte::FIFO, byte)
                 .unwrap();
         }
 
-        cc1101_handle
+        cc1101
             .0
             .write_cmd_strobe(cc1101::lowlevel::registers::Command::STX)
             .unwrap();
