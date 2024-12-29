@@ -7,12 +7,14 @@
 #![feature(impl_trait_in_assoc_type)]
 #![allow(async_fn_in_trait)]
 
+mod command_parser;
+mod net_ui;
+
 use cc1101;
 
 use cyw43_pio::PioSpi;
 use defmt::*;
 use embassy_executor::Spawner;
-use embassy_net::StackResources;
 use embassy_rp::bind_interrupts;
 use embassy_rp::clocks::RoscRng;
 use embassy_rp::gpio::{Level, Output};
@@ -20,7 +22,6 @@ use embassy_rp::peripherals::USB;
 use embassy_rp::peripherals::{DMA_CH0, PIO0};
 use embassy_rp::pio::Pio;
 use embassy_usb_logger::ReceiverHandler;
-use embedded_io_async::Write;
 use rand::RngCore;
 use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
@@ -45,77 +46,22 @@ async fn net_task(mut runner: embassy_net::Runner<'static, cyw43::NetDriver<'sta
     runner.run().await
 }
 
-const IN_BUF_SIZE: usize = 64;
-struct InputBuffer {
-    buf: [u8; IN_BUF_SIZE],
-    index: usize,
-}
+static USB_SERIAL_INPUT_CHANNEL: embassy_sync::channel::Channel<
+    embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
+    u8,
+    100,
+> = embassy_sync::channel::Channel::new();
 
-impl InputBuffer {
-    async fn handle_char(&mut self, b: u8) {
-        if b == b'\n' {
-            self.handle_line().await;
-            self.index = 0;
-        } else {
-            log::info!("{}", b as char);
-            let i = self.index;
-            self.buf[i] = b;
-            self.index += 1;
-            if self.index >= IN_BUF_SIZE {
-                log::info!("input buffer overflow, resetting: {:?}", self.buf);
-                self.index = 0;
-            }
-        }
-    }
-
-    async fn handle_line(&self) {
-        let s = match core::str::from_utf8(&self.buf[0..self.index]) {
-            Ok(s) => s,
-            Err(_) => return,
-        };
-
-        log::info!("got line: '{}'", s);
-        let mut tokens = s.split_whitespace();
-        let cmd = match tokens.next() {
-            Some(cmd) => cmd,
-            None => return,
-        };
-        match cmd {
-            cmd if "bootloader".eq_ignore_ascii_case(cmd) => {
-                log::info!("resetting to bootloader");
-                embassy_rp::rom_data::reset_to_usb_boot(0, 0);
-            }
-            cmd if "ping".eq_ignore_ascii_case(cmd) => {
-                log::info!("pong");
-            }
-            _ => {
-                log::info!("unknown command '{}'", cmd);
-            }
-        }
-    }
-}
-
-struct USBSerialHandler {
-    input_buffer: embassy_sync::mutex::Mutex<
-        embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
-        InputBuffer,
-    >,
-}
+struct USBSerialHandler {}
 
 impl ReceiverHandler for USBSerialHandler {
     fn new() -> Self {
-        Self {
-            input_buffer: embassy_sync::mutex::Mutex::new(InputBuffer {
-                buf: [0; IN_BUF_SIZE],
-                index: 0,
-            }),
-        }
+        Self {}
     }
 
     async fn handle_data(&self, data: &[u8]) {
-        let mut locked_input_buffer = self.input_buffer.lock().await;
         for b in data {
-            locked_input_buffer.handle_char(*b).await;
+            USB_SERIAL_INPUT_CHANNEL.send(*b).await;
         }
     }
 }
@@ -126,7 +72,7 @@ async fn logger_task(driver: embassy_rp::usb::Driver<'static, USB>) {
 }
 
 #[embassy_executor::main]
-async fn main(spawner: Spawner) {
+async fn main(spawner: Spawner) -> ! {
     let p = embassy_rp::init(Default::default());
 
     let mut rng: RoscRng = RoscRng;
@@ -187,13 +133,11 @@ async fn main(spawner: Spawner) {
     let seed: u64 = rng.next_u64();
 
     // Init network stack
-    static RESOURCES: StaticCell<StackResources<3>> = StaticCell::new();
-    let (stack, runner) = embassy_net::new(
-        net_device,
-        net_config,
-        RESOURCES.init(StackResources::new()),
-        seed,
-    );
+    static STACK_RESOURCES: StaticCell<embassy_net::StackResources<3>> = StaticCell::new();
+    let r: &'static mut embassy_net::StackResources<3> =
+        STACK_RESOURCES.init(embassy_net::StackResources::new());
+
+    let (stack, runner) = embassy_net::new(net_device, net_config, r, seed);
 
     unwrap!(spawner.spawn(net_task(runner)));
 
@@ -511,54 +455,32 @@ async fn main(spawner: Spawner) {
 
     // And now we can use it!
 
-    let mut tcp_rx_buffer: [u8; 1024] = [0; 1024];
-    let mut tcp_tx_buffer: [u8; 1024] = [0; 1024];
-    let mut socket =
-        embassy_net::tcp::TcpSocket::new(stack, &mut tcp_rx_buffer, &mut tcp_tx_buffer);
-    socket.set_timeout(Some(embassy_time::Duration::from_secs(10)));
+    static net_command_channel: embassy_sync::channel::Channel<
+        embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
+        u8,
+        100,
+    > = embassy_sync::channel::Channel::new();
+
+    spawner
+        .spawn(net_ui::net_ui_task(stack, &net_command_channel))
+        .unwrap();
+
+    let mut usb_serial_in = command_parser::InputBuffer::new();
 
     loop {
-        // Turn wifi led off to indicate "no connection".
-        cyw43_control.gpio_set(0, false).await;
-        log::info!("Listening on 169.254.1.1:1234...");
-
-        match socket.accept(1234).await {
-            Ok(()) => {
-                log::info!(
-                    "Received TCP connection from {:?}",
-                    socket.remote_endpoint()
-                );
-                cyw43_control.gpio_set(0, true).await;
-
-                loop {
-                    let mut buf: [u8; 1024] = [0; 1024];
-                    let n = match socket.read(&mut buf).await {
-                        Ok(0) => {
-                            log::warn!("read EOF");
-                            break;
-                        }
-                        Ok(n) => n,
-                        Err(e) => {
-                            log::warn!("read error: {:?}", e);
-                            break;
-                        }
-                    };
-
-                    log::info!("rxd {}", core::str::from_utf8(&buf[..n]).unwrap());
-
-                    match socket.write_all(&buf[..n]).await {
-                        Ok(_) => {}
-                        Err(e) => {
-                            log::warn!("write error: {:?}", e);
-                            break;
-                        }
-                    };
-                }
-                socket.close();
+        match embassy_futures::select::select(
+            net_command_channel.receiver().receive(),
+            USB_SERIAL_INPUT_CHANNEL.receive(),
+        )
+        .await
+        {
+            embassy_futures::select::Either::First(b) => {
+                log::info!("char from tcp: {}", b as char);
             }
 
-            Err(_) => {
-                log::error!("failed to accept tcp connection");
+            embassy_futures::select::Either::Second(b) => {
+                log::info!("char from usb: {}", b as char);
+                usb_serial_in.handle_char(b);
             }
         }
 
