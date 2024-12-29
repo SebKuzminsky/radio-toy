@@ -20,7 +20,7 @@ use embassy_rp::peripherals::USB;
 use embassy_rp::peripherals::{DMA_CH0, PIO0};
 use embassy_rp::pio::Pio;
 use embassy_usb_logger::ReceiverHandler;
-use embedded_io_async::Write;
+// use embedded_io_async::Write;
 use rand::RngCore;
 use static_cell::StaticCell;
 use {defmt_rtt as _, panic_probe as _};
@@ -453,11 +453,11 @@ async fn main(spawner: Spawner) {
     // _pad == 0 (0x00)
     // chanspc_en = 2 (0x02)
 
-    let old_v = cc1101_handle
-        .0
-        .read_register(cc1101::lowlevel::registers::Config::MDMCFG1)
-        .unwrap();
-    log::info!("MDMCFG1 old_v is 0x{:02x}", old_v);
+    // let old_v = cc1101_handle
+    //     .0
+    //     .read_register(cc1101::lowlevel::registers::Config::MDMCFG1)
+    //     .unwrap();
+    // log::info!("MDMCFG1 old_v is 0x{:02x}", old_v);
 
     // let mut v = cc1101::lowlevel::registers::MDMCFG1(old_v);
     // v.fec_en = 0;
@@ -539,46 +539,46 @@ async fn main(spawner: Spawner) {
 
     // And now we can use it!
 
-    let mut rx_buffer = [0; 4096];
-    let mut tx_buffer = [0; 4096];
-    let mut buf = [0; 4096];
+    // let mut rx_buffer = [0; 4096];
+    // let mut tx_buffer = [0; 4096];
+    // let mut buf = [0; 4096];
 
-    loop {
-        let mut socket = embassy_net::tcp::TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
-        socket.set_timeout(Some(embassy_time::Duration::from_secs(10)));
+    // loop {
+    //     let mut socket = embassy_net::tcp::TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
+    //     socket.set_timeout(Some(embassy_time::Duration::from_secs(10)));
 
-        cyw43_control.gpio_set(0, false).await;
-        log::info!("Listening on 169.254.1.1:1234...");
-        if let Err(e) = socket.accept(1234).await {
-            log::warn!("accept error: {:?}", e);
-            continue;
-        }
+    //     cyw43_control.gpio_set(0, false).await;
+    //     log::info!("Listening on 169.254.1.1:1234...");
+    //     if let Err(e) = socket.accept(1234).await {
+    //         log::warn!("accept error: {:?}", e);
+    //         continue;
+    //     }
 
-        log::info!("Received connection from {:?}", socket.remote_endpoint());
-        cyw43_control.gpio_set(0, true).await;
+    //     log::info!("Received connection from {:?}", socket.remote_endpoint());
+    //     cyw43_control.gpio_set(0, true).await;
 
-        loop {
-            let n = match socket.read(&mut buf).await {
-                Ok(0) => {
-                    log::warn!("read EOF");
-                    break;
-                }
-                Ok(n) => n,
-                Err(e) => {
-                    log::warn!("read error: {:?}", e);
-                    break;
-                }
-            };
+    //     loop {
+    //         let n = match socket.read(&mut buf).await {
+    //             Ok(0) => {
+    //                 log::warn!("read EOF");
+    //                 break;
+    //             }
+    //             Ok(n) => n,
+    //             Err(e) => {
+    //                 log::warn!("read error: {:?}", e);
+    //                 break;
+    //             }
+    //         };
 
-            log::info!("rxd {}", core::str::from_utf8(&buf[..n]).unwrap());
+    //         log::info!("rxd {}", core::str::from_utf8(&buf[..n]).unwrap());
 
-            match socket.write_all(&buf[..n]).await {
-                Ok(()) => {}
-                Err(e) => {
-                    log::warn!("write error: {:?}", e);
-                    break;
-                }
-            };
-        }
-    }
+    //         match socket.write_all(&buf[..n]).await {
+    //             Ok(()) => {}
+    //             Err(e) => {
+    //                 log::warn!("write error: {:?}", e);
+    //                 break;
+    //             }
+    //         };
+    //     }
+    // }
 }
