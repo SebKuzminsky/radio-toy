@@ -447,11 +447,6 @@ async fn main(spawner: Spawner) {
         .unwrap();
     log::info!("{tx_bytes} bytes in TXFIFO");
 
-    // printf("registers after configuration:\n");
-    // cc1101_dump_registers(cc1101);
-
-    // sleep_ms(2 * 1000);
-
     // Calibrate the frequency synthesizer.  We're in IDLE Mode so this
     // is allowed.
     cc1101_handle
@@ -558,10 +553,6 @@ async fn main(spawner: Spawner) {
     cc1101_handle
         .await_machine_state(cc1101::lowlevel::types::MachineState::IDLE)
         .unwrap();
-
-    //     while(1) {
-    //         read_serial(cc1101);
-    //     }
 
     // And now we can use it!
 
