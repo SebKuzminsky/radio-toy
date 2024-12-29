@@ -493,7 +493,6 @@ async fn main(spawner: Spawner) {
         .write_register(cc1101::lowlevel::registers::Config::MDMCFG2, v)
         .unwrap();
 
-    // "freq": 433920000,
     // Set the carrier frequency to 433.920 MHz.
     cc1101_handle.set_frequency(433_920_000).unwrap();
 
@@ -502,16 +501,17 @@ async fn main(spawner: Spawner) {
         .set_radio_mode(cc1101::RadioMode::Calibrate)
         .unwrap();
 
-    // "baud": 3175,
+    // Set baud rate to 3175.
     cc1101_handle.set_data_rate(3_175).unwrap();
 
-    // "pktlen": 32
+    // Set packet length to 32.
+    // FIXME: not sure if this is needed since we trigger TX explicitly.
     cc1101_handle
         .0
         .write_register(cc1101::lowlevel::registers::Config::PKTLEN, 32)
         .unwrap();
 
-    // data
+    // This is the packet data.
     let data: [u8; 32] = [
         0xe8, 0xe8, 0xe8, 0xe8, 0xe8, 0xe8, 0xe8, 0xee, 0x00, 0x00, 0x00, 0x00, 0xe8, 0xe8, 0xe8,
         0xe8, 0xe8, 0xe8, 0xe8, 0xee, 0x00, 0x00, 0x00, 0x00, 0xe8, 0xe8, 0xe8, 0xe8, 0xe8, 0xe8,
