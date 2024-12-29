@@ -347,6 +347,7 @@ async fn main(spawner: Spawner) {
         .0
         .write_register(cc1101::lowlevel::registers::Config::AGCCTRL2, 0x03)
         .unwrap();
+
     cc1101_handle
         .0
         .write_register(cc1101::lowlevel::registers::Config::AGCCTRL1, 0x00)
@@ -465,7 +466,7 @@ async fn main(spawner: Spawner) {
         .0
         .read_register(cc1101::lowlevel::registers::Config::MDMCFG1)
         .unwrap();
-    log::info!("MDMCFG1 old_v is {:02x}", old_v);
+    log::info!("MDMCFG1 old_v is 0x{:02x}", old_v);
 
     // let mut v = cc1101::lowlevel::registers::MDMCFG1(old_v);
     // v.fec_en = 0;
@@ -538,10 +539,6 @@ async fn main(spawner: Spawner) {
 
         embassy_time::Timer::after(embassy_time::Duration::from_secs(1)).await;
     }
-
-    cc1101_handle
-        .await_machine_state(cc1101::lowlevel::types::MachineState::IDLE)
-        .unwrap();
 
     // And now we can use it!
 
