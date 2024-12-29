@@ -509,74 +509,76 @@ async fn main(spawner: Spawner) {
         .write_register(cc1101::lowlevel::registers::Config::PKTLEN, 32)
         .unwrap();
 
-    // This is the packet data.
-    let data: [u8; 32] = [
-        0xe8, 0xe8, 0xe8, 0xe8, 0xe8, 0xe8, 0xe8, 0xee, 0x00, 0x00, 0x00, 0x00, 0xe8, 0xe8, 0xe8,
-        0xe8, 0xe8, 0xe8, 0xe8, 0xee, 0x00, 0x00, 0x00, 0x00, 0xe8, 0xe8, 0xe8, 0xe8, 0xe8, 0xe8,
-        0xe8, 0xee,
-    ];
-
-    loop {
-        // log::info!("ping!");
-
-        for byte in data {
-            // log::info!("writing to FIFO: 0x{:02x}", byte);
-            cc1101
-                .0
-                .write_register(cc1101::lowlevel::registers::MultiByte::FIFO, byte)
-                .unwrap();
-        }
-
-        cc1101
-            .0
-            .write_cmd_strobe(cc1101::lowlevel::registers::Command::STX)
-            .unwrap();
-
-        embassy_time::Timer::after(embassy_time::Duration::from_secs(1)).await;
-    }
-
     // And now we can use it!
 
-    // let mut rx_buffer = [0; 4096];
-    // let mut tx_buffer = [0; 4096];
-    // let mut buf = [0; 4096];
+    let mut tcp_rx_buffer: [u8; 1024] = [0; 1024];
+    let mut tcp_tx_buffer: [u8; 1024] = [0; 1024];
+    let mut socket =
+        embassy_net::tcp::TcpSocket::new(stack, &mut tcp_rx_buffer, &mut tcp_tx_buffer);
+    socket.set_timeout(Some(embassy_time::Duration::from_secs(10)));
 
-    // loop {
-    //     let mut socket = embassy_net::tcp::TcpSocket::new(stack, &mut rx_buffer, &mut tx_buffer);
-    //     socket.set_timeout(Some(embassy_time::Duration::from_secs(10)));
+    loop {
+        // Turn wifi led off to indicate "no connection".
+        cyw43_control.gpio_set(0, false).await;
+        log::info!("Listening on 169.254.1.1:1234...");
 
-    //     cyw43_control.gpio_set(0, false).await;
-    //     log::info!("Listening on 169.254.1.1:1234...");
-    //     if let Err(e) = socket.accept(1234).await {
-    //         log::warn!("accept error: {:?}", e);
-    //         continue;
-    //     }
+        match socket.accept(1234).await {
+            Ok(()) => {
+                log::info!(
+                    "Received TCP connection from {:?}",
+                    socket.remote_endpoint()
+                );
+                cyw43_control.gpio_set(0, true).await;
 
-    //     log::info!("Received connection from {:?}", socket.remote_endpoint());
-    //     cyw43_control.gpio_set(0, true).await;
+                loop {
+                    let mut buf: [u8; 1024] = [0; 1024];
+                    let n = match socket.read(&mut buf).await {
+                        Ok(0) => {
+                            log::warn!("read EOF");
+                            break;
+                        }
+                        Ok(n) => n,
+                        Err(e) => {
+                            log::warn!("read error: {:?}", e);
+                            break;
+                        }
+                    };
 
-    //     loop {
-    //         let n = match socket.read(&mut buf).await {
-    //             Ok(0) => {
-    //                 log::warn!("read EOF");
-    //                 break;
-    //             }
-    //             Ok(n) => n,
-    //             Err(e) => {
-    //                 log::warn!("read error: {:?}", e);
-    //                 break;
-    //             }
-    //         };
+                    log::info!("rxd {}", core::str::from_utf8(&buf[..n]).unwrap());
 
-    //         log::info!("rxd {}", core::str::from_utf8(&buf[..n]).unwrap());
+                    match socket.write(&buf[..n]).await {
+                        Ok(_) => {}
+                        Err(e) => {
+                            log::warn!("write error: {:?}", e);
+                            break;
+                        }
+                    };
+                }
+                socket.close();
+            }
 
-    //         match socket.write_all(&buf[..n]).await {
-    //             Ok(()) => {}
-    //             Err(e) => {
-    //                 log::warn!("write error: {:?}", e);
-    //                 break;
-    //             }
-    //         };
-    //     }
-    // }
+            Err(_) => {
+                log::error!("failed to accept tcp connection");
+            }
+        }
+
+        // log::info!("ping!");
+        // // This is the packet data.
+        // let data: [u8; 32] = [
+        //     0xe8, 0xe8, 0xe8, 0xe8, 0xe8, 0xe8, 0xe8, 0xee, 0x00, 0x00, 0x00, 0x00, 0xe8, 0xe8, 0xe8,
+        //     0xe8, 0xe8, 0xe8, 0xe8, 0xee, 0x00, 0x00, 0x00, 0x00, 0xe8, 0xe8, 0xe8, 0xe8, 0xe8, 0xe8,
+        //     0xe8, 0xee,
+        // ];
+        // for byte in data {
+        //     // log::info!("writing to FIFO: 0x{:02x}", byte);
+        //     cc1101
+        //         .0
+        //         .write_register(cc1101::lowlevel::registers::MultiByte::FIFO, byte)
+        //         .unwrap();
+        // }
+        // cc1101
+        //     .0
+        //     .write_cmd_strobe(cc1101::lowlevel::registers::Command::STX)
+        //     .unwrap();
+    }
 }
