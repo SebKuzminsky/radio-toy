@@ -286,9 +286,6 @@ async fn main(spawner: Spawner) {
         .write_register(cc1101::lowlevel::registers::Config::FSCTRL0, 0x00)
         .unwrap();
 
-    // Set the carrier frequency to 433.920 MHz.
-    cc1101_handle.set_frequency(433_920_000).unwrap();
-
     // Input bandwidth, ~203 kHz
     cc1101_handle
         .0
@@ -437,12 +434,6 @@ async fn main(spawner: Spawner) {
         .unwrap();
     log::info!("{tx_bytes} bytes in TXFIFO");
 
-    // Calibrate the frequency synthesizer.  We're in IDLE Mode so this
-    // is allowed.
-    cc1101_handle
-        .set_radio_mode(cc1101::RadioMode::Calibrate)
-        .unwrap();
-
     // Ok, now we're ready.
 
     // "tx-preamble-bytes": 6
@@ -503,7 +494,13 @@ async fn main(spawner: Spawner) {
         .unwrap();
 
     // "freq": 433920000,
-    // (done above)
+    // Set the carrier frequency to 433.920 MHz.
+    cc1101_handle.set_frequency(433_920_000).unwrap();
+
+    // Calibrate the frequency synthesizer.
+    cc1101_handle
+        .set_radio_mode(cc1101::RadioMode::Calibrate)
+        .unwrap();
 
     // "baud": 3175,
     cc1101_handle.set_data_rate(3_175).unwrap();
