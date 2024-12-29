@@ -1,3 +1,5 @@
+use crate::command_parser;
+
 use embedded_io_async::Write;
 
 #[embassy_executor::task]
@@ -5,23 +7,25 @@ pub async fn net_ui_task(
     stack: embassy_net::Stack<'static>,
     sender: &'static embassy_sync::channel::Channel<
         embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
-        u8,
+        command_parser::Command,
         100,
     >,
 ) -> ! {
-    // socket.set_timeout(Some(embassy_time::Duration::from_secs(10)));
     loop {
         let mut tcp_rx_buffer: [u8; 1024] = [0; 1024];
         let mut tcp_tx_buffer: [u8; 1024] = [0; 1024];
 
         let mut socket =
             embassy_net::tcp::TcpSocket::new(stack, &mut tcp_rx_buffer, &mut tcp_tx_buffer);
+        // socket.set_timeout(Some(embassy_time::Duration::from_secs(10)));
 
         if socket.accept(1234).await == Ok(()) {
             log::info!(
                 "handling TCP connection from {:?}",
                 socket.remote_endpoint()
             );
+
+            let mut parser = command_parser::Parser::new();
 
             let mut buf: [u8; 1024] = [0; 1024];
             loop {
@@ -38,7 +42,12 @@ pub async fn net_ui_task(
                         );
 
                         for b in &buf[..n] {
-                            sender.send(*b).await;
+                            match parser.ingest(*b) {
+                                Some(command) => {
+                                    sender.send(command).await;
+                                }
+                                None => {}
+                            }
                         }
 
                         match socket.write_all(&buf[..n]).await {

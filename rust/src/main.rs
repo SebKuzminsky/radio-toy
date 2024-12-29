@@ -455,32 +455,37 @@ async fn main(spawner: Spawner) -> ! {
 
     // And now we can use it!
 
-    static net_command_channel: embassy_sync::channel::Channel<
+    static NET_COMMAND_CHANNEL: embassy_sync::channel::Channel<
         embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
-        u8,
+        command_parser::Command,
         100,
     > = embassy_sync::channel::Channel::new();
 
     spawner
-        .spawn(net_ui::net_ui_task(stack, &net_command_channel))
+        .spawn(net_ui::net_ui_task(stack, &NET_COMMAND_CHANNEL))
         .unwrap();
 
-    let mut usb_serial_in = command_parser::InputBuffer::new();
+    let mut usb_serial_command_parser = command_parser::Parser::new();
 
     loop {
         match embassy_futures::select::select(
-            net_command_channel.receiver().receive(),
+            NET_COMMAND_CHANNEL.receiver().receive(),
             USB_SERIAL_INPUT_CHANNEL.receive(),
         )
         .await
         {
-            embassy_futures::select::Either::First(b) => {
-                log::info!("char from tcp: {}", b as char);
+            embassy_futures::select::Either::First(command) => {
+                log::info!("command from tcp: {:?}", command);
             }
 
             embassy_futures::select::Either::Second(b) => {
                 log::info!("char from usb: {}", b as char);
-                usb_serial_in.handle_char(b);
+                match usb_serial_command_parser.ingest(b) {
+                    Some(command) => {
+                        log::info!("USB command {:?}", command);
+                    }
+                    None => {}
+                }
             }
         }
 
