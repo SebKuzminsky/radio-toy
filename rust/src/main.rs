@@ -514,6 +514,23 @@ async fn main(spawner: Spawner) -> ! {
                     .unwrap();
             }
 
+            Some(command_parser::Command::Frequency(n)) => {
+                log::info!("frequency {}", n);
+                cc1101.set_frequency(n as u64).unwrap();
+            }
+
+            Some(command_parser::Command::Baud(n)) => {
+                log::info!("baud {}", n);
+                cc1101.set_data_rate(n as u64).unwrap();
+            }
+
+            Some(command_parser::Command::PacketLength(n)) => {
+                log::info!("packet length {}", n);
+                cc1101
+                    .set_packet_length(cc1101::PacketLength::Fixed(n))
+                    .unwrap();
+            }
+
             None => {}
         }
 

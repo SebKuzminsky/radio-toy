@@ -7,6 +7,9 @@ pub enum Command {
     SyncWordMSB(u8),
     SyncWordLSB(u8),
     SyncMode(u8),
+    Frequency(u32),
+    Baud(u32),
+    PacketLength(u8),
 }
 
 pub struct Parser {
@@ -105,6 +108,39 @@ impl Parser {
             cmd if "sync-mode".eq_ignore_ascii_case(cmd) => match tokens.next() {
                 Some(t) => match t.parse::<u8>() {
                     Ok(n) => Some(Command::SyncMode(n)),
+                    Err(e) => {
+                        log::error!("failed to parse number from {}: {}", t, e);
+                        None
+                    }
+                },
+                None => None,
+            },
+
+            cmd if "freq".eq_ignore_ascii_case(cmd) => match tokens.next() {
+                Some(t) => match t.parse::<u32>() {
+                    Ok(n) => Some(Command::Frequency(n)),
+                    Err(e) => {
+                        log::error!("failed to parse number from {}: {}", t, e);
+                        None
+                    }
+                },
+                None => None,
+            },
+
+            cmd if "baud".eq_ignore_ascii_case(cmd) => match tokens.next() {
+                Some(t) => match t.parse::<u32>() {
+                    Ok(n) => Some(Command::Baud(n)),
+                    Err(e) => {
+                        log::error!("failed to parse number from {}: {}", t, e);
+                        None
+                    }
+                },
+                None => None,
+            },
+
+            cmd if "pktlen".eq_ignore_ascii_case(cmd) => match tokens.next() {
+                Some(t) => match t.parse::<u8>() {
+                    Ok(n) => Some(Command::PacketLength(n)),
                     Err(e) => {
                         log::error!("failed to parse number from {}: {}", t, e);
                         None
