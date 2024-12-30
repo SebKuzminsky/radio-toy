@@ -21,7 +21,7 @@ pub struct Parser {
 }
 
 impl Parser {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             buf: [0; BUF_SIZE],
             index: 0,
