@@ -1,0 +1,49 @@
+{
+    "tx-preamble-bytes": 6,
+    "sync-word-msb": 0,
+    "sync-word-lsb": 0,
+    "sync-mode": 3,
+    "freq": 433920000,
+    "baud": 3175,
+    "pktlen": 32
+}
+
+e8
+e8
+e8
+e8
+
+8e
+8e
+8e
+ee
+
+0
+0
+0
+0
+
+e8
+e8
+e8
+e8
+
+8e
+8e
+8e
+ee
+
+0
+0
+0
+0
+
+e8
+e8
+e8
+e8
+
+8e
+8e
+8e
+ee
