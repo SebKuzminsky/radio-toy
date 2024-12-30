@@ -49,7 +49,7 @@ async fn net_task(mut runner: embassy_net::Runner<'static, cyw43::NetDriver<'sta
 static USB_SERIAL_INPUT_CHANNEL: embassy_sync::channel::Channel<
     embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
     u8,
-    100,
+    1000,
 > = embassy_sync::channel::Channel::new();
 
 struct USBSerialHandler {}
