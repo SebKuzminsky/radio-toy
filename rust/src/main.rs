@@ -46,22 +46,32 @@ async fn net_task(mut runner: embassy_net::Runner<'static, cyw43::NetDriver<'sta
     runner.run().await
 }
 
-static USB_SERIAL_INPUT_CHANNEL: embassy_sync::channel::Channel<
+static USB_SERIAL_COMMAND_CHANNEL: embassy_sync::channel::Channel<
     embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
-    u8,
-    1000,
+    command_parser::Command,
+    100,
 > = embassy_sync::channel::Channel::new();
 
-struct USBSerialHandler {}
+struct USBSerialHandler {
+    parser: embassy_sync::mutex::Mutex<
+        embassy_sync::blocking_mutex::raw::CriticalSectionRawMutex,
+        command_parser::Parser,
+    >,
+}
 
 impl ReceiverHandler for USBSerialHandler {
     fn new() -> Self {
-        Self {}
+        Self {
+            parser: embassy_sync::mutex::Mutex::new(command_parser::Parser::new()),
+        }
     }
 
     async fn handle_data(&self, data: &[u8]) {
+        let mut parser = self.parser.lock().await;
         for b in data {
-            USB_SERIAL_INPUT_CHANNEL.send(*b).await;
+            if let Some(cmd) = parser.ingest(*b) {
+                USB_SERIAL_COMMAND_CHANNEL.send(cmd).await;
+            }
         }
     }
 }
@@ -389,25 +399,23 @@ async fn main(spawner: Spawner) -> ! {
         .spawn(net_ui::net_ui_task(stack, &NET_COMMAND_CHANNEL))
         .unwrap();
 
-    let mut usb_serial_command_parser = command_parser::Parser::new();
-
     loop {
-        let command: Option<command_parser::Command> = match embassy_futures::select::select(
+        let command: command_parser::Command = match embassy_futures::select::select(
             NET_COMMAND_CHANNEL.receiver().receive(),
-            USB_SERIAL_INPUT_CHANNEL.receive(),
+            USB_SERIAL_COMMAND_CHANNEL.receiver().receive(),
         )
         .await
         {
-            embassy_futures::select::Either::First(command) => Some(command),
-            embassy_futures::select::Either::Second(b) => usb_serial_command_parser.ingest(b),
+            embassy_futures::select::Either::First(command) => command,
+            embassy_futures::select::Either::Second(command) => command,
         };
 
         match command {
-            Some(command_parser::Command::Ping) => {
+            command_parser::Command::Ping => {
                 log::info!("Pong");
             }
 
-            Some(command_parser::Command::TxPreambleBytes(num_preamble_bytes)) => {
+            command_parser::Command::TxPreambleBytes(num_preamble_bytes) => {
                 log::info!("tx-preamble-bytes {}", num_preamble_bytes);
 
                 let r = cc1101
@@ -446,7 +454,7 @@ async fn main(spawner: Spawner) -> ! {
                     .unwrap();
             }
 
-            Some(command_parser::Command::SyncWordMSB(n)) => {
+            command_parser::Command::SyncWordMSB(n) => {
                 log::info!("sync-word-msb {}", n);
                 let sync1 = cc1101::lowlevel::registers::SYNC1(n);
                 cc1101
@@ -455,7 +463,7 @@ async fn main(spawner: Spawner) -> ! {
                     .unwrap();
             }
 
-            Some(command_parser::Command::SyncWordLSB(n)) => {
+            command_parser::Command::SyncWordLSB(n) => {
                 log::info!("sync-word-lsb {}", n);
                 let sync0 = cc1101::lowlevel::registers::SYNC0(n);
                 cc1101
@@ -464,7 +472,7 @@ async fn main(spawner: Spawner) -> ! {
                     .unwrap();
             }
 
-            Some(command_parser::Command::SyncMode(n)) => {
+            command_parser::Command::SyncMode(n) => {
                 log::info!("sync-mode {}", n);
 
                 let r = cc1101
@@ -481,29 +489,29 @@ async fn main(spawner: Spawner) -> ! {
                     .unwrap();
             }
 
-            Some(command_parser::Command::Frequency(n)) => {
+            command_parser::Command::Frequency(n) => {
                 log::info!("frequency {}", n);
                 cc1101.set_frequency(n as u64).unwrap();
             }
 
-            Some(command_parser::Command::Baud(n)) => {
+            command_parser::Command::Baud(n) => {
                 log::info!("baud {}", n);
                 cc1101.set_data_rate(n as u64).unwrap();
             }
 
-            Some(command_parser::Command::PacketLength(n)) => {
+            command_parser::Command::PacketLength(n) => {
                 log::info!("packet length {}", n);
                 cc1101
                     .set_packet_length(cc1101::PacketLength::Fixed(n))
                     .unwrap();
             }
 
-            Some(command_parser::Command::Idle) => {
+            command_parser::Command::Idle => {
                 log::info!("idle");
                 cc1101.set_radio_mode(cc1101::RadioMode::Idle).unwrap();
             }
 
-            Some(command_parser::Command::TxFifo(byte)) => {
+            command_parser::Command::TxFifo(byte) => {
                 log::info!("tx-fifo 0x{:02x}", byte);
                 cc1101
                     .0
@@ -511,12 +519,10 @@ async fn main(spawner: Spawner) -> ! {
                     .unwrap();
             }
 
-            Some(command_parser::Command::DoTx) => {
+            command_parser::Command::DoTx => {
                 log::info!("do-tx");
                 cc1101.enable_tx().unwrap();
             }
-
-            None => {}
         }
     }
 }
