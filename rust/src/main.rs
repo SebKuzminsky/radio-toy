@@ -380,36 +380,6 @@ async fn main(spawner: Spawner) -> ! {
 
     // Ok, now we're ready.
 
-    // "tx-preamble-bytes": 6
-
-    // register!(MDMCFG1, 0b0010_0010, u8, {
-    //     #[doc = "Enable Forward Error Correction"]
-    //     fec_en @ 7,
-    //     #[doc = "Sets the minimum number of preamble bytes to be transmitted"]
-    //     num_preamble @ 4..6,
-    //     #[doc = "Exponent of channel spacing"]
-    //     chanspc_e @ 0..1,
-    // });
-
-    // 0x32
-    // fec_en == 0 (0x00)
-    // num_preamble == 3 (0x30)
-    // _pad == 0 (0x00)
-    // chanspc_en = 2 (0x02)
-
-    // let old_v = cc1101
-    //     .0
-    //     .read_register(cc1101::lowlevel::registers::Config::MDMCFG1)
-    //     .unwrap();
-    // log::info!("MDMCFG1 old_v is 0x{:02x}", old_v);
-
-    // let mut v = cc1101::lowlevel::registers::MDMCFG1(old_v);
-    // v.fec_en = 0;
-    // v.num_preamble = cc1101::lowlevel::types::NumPreamble::N_6;
-    // v.chanspc_e = 0;
-
-    // log::info!("MDMCFG1 is {:02x}", v);
-
     cc1101
         .0
         .write_register(cc1101::lowlevel::registers::Config::MDMCFG1, 0x32)
@@ -496,8 +466,46 @@ async fn main(spawner: Spawner) -> ! {
                 log::info!("Pong");
             }
 
-            Some(command_parser::Command::TxPreambleBytes(n)) => {
-                log::info!("tx-preamble-bytes {}", n);
+            Some(command_parser::Command::TxPreambleBytes(num_preamble_bytes)) => {
+                log::info!("tx-preamble-bytes {}", num_preamble_bytes);
+
+                let r = cc1101
+                    .0
+                    .read_register(cc1101::lowlevel::registers::Config::MDMCFG1)
+                    .unwrap();
+                let mdmcfg1 = cc1101::lowlevel::registers::MDMCFG1(r);
+                log::info!("original MDMCFG1 is 0x{:02x} 0x{:02x}", r, mdmcfg1.bits());
+                log::info!("   num_preamble=0x{:02x}", mdmcfg1.num_preamble());
+                let mut mdmcfg1 = mdmcfg1.modify();
+
+                // Setting | Number of preamble bytes
+                // 0 (000) | 2
+                // 1 (001) | 3
+                // 2 (010) | 4
+                // 3 (011) | 6
+                // 4 (100) | 8
+                // 5 (101) | 12
+                // 6 (110) | 16
+                // 7 (111) | 24
+
+                let num_preamble_field = match num_preamble_bytes {
+                    x if x <= 2 => 0,
+                    x if x == 3 => 1,
+                    x if x == 4 => 2,
+                    x if x <= 6 => 3,
+                    x if x <= 8 => 4,
+                    x if x <= 12 => 5,
+                    x if x <= 16 => 6,
+                    x if x <= 24 => 7,
+                    _ => 7,
+                };
+                mdmcfg1.num_preamble(num_preamble_field);
+                log::info!("new MDMCFG1 is 0x{:02x}", mdmcfg1.bits());
+
+                cc1101
+                    .0
+                    .write_register(cc1101::lowlevel::registers::Config::MDMCFG1, mdmcfg1.bits())
+                    .unwrap();
             }
 
             None => {}
