@@ -372,23 +372,10 @@ async fn main(spawner: Spawner) -> ! {
         .write_cmd_strobe(cc1101::lowlevel::registers::Command::SFTX)
         .unwrap();
 
-    // Ok, now we're ready.
-
-    // Set the carrier frequency to 433.920 MHz.
-    cc1101.set_frequency(433_920_000).unwrap();
-
     // Calibrate the frequency synthesizer.
     cc1101.set_radio_mode(cc1101::RadioMode::Calibrate).unwrap();
 
-    // Set baud rate to 3175.
-    cc1101.set_data_rate(3_175).unwrap();
-
-    // Set packet length to 32.
-    // FIXME: not sure if this is needed since we trigger TX explicitly.
-    cc1101
-        .0
-        .write_register(cc1101::lowlevel::registers::Config::PKTLEN, 32)
-        .unwrap();
+    // Ok, now we're ready.
 
     // And now we can use it!
 
@@ -531,26 +518,25 @@ async fn main(spawner: Spawner) -> ! {
                     .unwrap();
             }
 
+            Some(command_parser::Command::Idle) => {
+                log::info!("idle");
+                cc1101.set_radio_mode(cc1101::RadioMode::Idle).unwrap();
+            }
+
+            Some(command_parser::Command::TxFifo(byte)) => {
+                log::info!("tx-fifo 0x{:02x}", byte);
+                cc1101
+                    .0
+                    .write_register(cc1101::lowlevel::registers::MultiByte::FIFO, byte)
+                    .unwrap();
+            }
+
+            Some(command_parser::Command::DoTx) => {
+                log::info!("do-tx");
+                cc1101.enable_tx().unwrap();
+            }
+
             None => {}
         }
-
-        // log::info!("ping!");
-        // // This is the packet data.
-        // let data: [u8; 32] = [
-        //     0xe8, 0xe8, 0xe8, 0xe8, 0xe8, 0xe8, 0xe8, 0xee, 0x00, 0x00, 0x00, 0x00, 0xe8, 0xe8, 0xe8,
-        //     0xe8, 0xe8, 0xe8, 0xe8, 0xee, 0x00, 0x00, 0x00, 0x00, 0xe8, 0xe8, 0xe8, 0xe8, 0xe8, 0xe8,
-        //     0xe8, 0xee,
-        // ];
-        // for byte in data {
-        //     // log::info!("writing to FIFO: 0x{:02x}", byte);
-        //     cc1101
-        //         .0
-        //         .write_register(cc1101::lowlevel::registers::MultiByte::FIFO, byte)
-        //         .unwrap();
-        // }
-        // cc1101
-        //     .0
-        //     .write_cmd_strobe(cc1101::lowlevel::registers::Command::STX)
-        //     .unwrap();
     }
 }

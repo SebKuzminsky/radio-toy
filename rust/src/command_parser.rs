@@ -3,6 +3,7 @@ const BUF_SIZE: usize = 64;
 #[derive(Debug)]
 pub enum Command {
     Ping,
+    Idle,
     TxPreambleBytes(u8),
     SyncWordMSB(u8),
     SyncWordLSB(u8),
@@ -10,6 +11,8 @@ pub enum Command {
     Frequency(u32),
     Baud(u32),
     PacketLength(u8),
+    TxFifo(u8),
+    DoTx,
 }
 
 pub struct Parser {
@@ -71,6 +74,21 @@ impl Parser {
                 log::info!("pong");
                 Some(Command::Ping)
             }
+
+            cmd if "idle".eq_ignore_ascii_case(cmd) => Some(Command::Idle),
+
+            cmd if "do-tx".eq_ignore_ascii_case(cmd) => Some(Command::DoTx),
+
+            cmd if "tx-fifo".eq_ignore_ascii_case(cmd) => match tokens.next() {
+                Some(t) => match u8::from_str_radix(t, 16) {
+                    Ok(byte) => Some(Command::TxFifo(byte)),
+                    Err(e) => {
+                        log::error!("failed to parse byte from {}: {}", t, e);
+                        None
+                    }
+                },
+                None => None,
+            },
 
             cmd if "tx-preamble-bytes".eq_ignore_ascii_case(cmd) => match tokens.next() {
                 Some(t) => match t.parse::<u8>() {
