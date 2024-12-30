@@ -494,6 +494,7 @@ async fn main(spawner: Spawner) -> ! {
             command_parser::Command::Frequency(n) => {
                 log::info!("frequency {}", n);
                 cc1101.set_frequency(n as u64).unwrap();
+                cc1101.set_radio_mode(cc1101::RadioMode::Calibrate).unwrap();
             }
 
             command_parser::Command::Baud(n) => {
