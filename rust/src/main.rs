@@ -372,40 +372,7 @@ async fn main(spawner: Spawner) -> ! {
         .write_cmd_strobe(cc1101::lowlevel::registers::Command::SFTX)
         .unwrap();
 
-    let tx_bytes = cc1101
-        .0
-        .read_register(cc1101::lowlevel::registers::Status::TXBYTES)
-        .unwrap();
-    log::info!("{tx_bytes} bytes in TXFIFO");
-
     // Ok, now we're ready.
-
-    cc1101
-        .0
-        .write_register(cc1101::lowlevel::registers::Config::MDMCFG1, 0x32)
-        .unwrap();
-
-    // "sync-word-msb": 0,
-    // "sync-word-lsb": 0,
-    cc1101
-        .0
-        .write_register(cc1101::lowlevel::registers::Config::SYNC1, 0x00)
-        .unwrap();
-    cc1101
-        .0
-        .write_register(cc1101::lowlevel::registers::Config::SYNC0, 0x00)
-        .unwrap();
-
-    // "sync-mode": 3,
-    let dem_dcfilt_off: u8 = 0;
-    let mod_format: u8 = 3;
-    let manchester_en: u8 = 0;
-    let sync_mode: u8 = 3;
-    let v: u8 = (dem_dcfilt_off << 7) | (mod_format << 4) | (manchester_en << 3) | (sync_mode);
-    cc1101
-        .0
-        .write_register(cc1101::lowlevel::registers::Config::MDMCFG2, v)
-        .unwrap();
 
     // Set the carrier frequency to 433.920 MHz.
     cc1101.set_frequency(433_920_000).unwrap();
