@@ -78,7 +78,7 @@ impl ReceiverHandler for USBSerialHandler {
 
 #[embassy_executor::task]
 async fn logger_task(driver: embassy_rp::usb::Driver<'static, USB>) {
-    embassy_usb_logger::run!(4096, log::LevelFilter::Info, driver, USBSerialHandler);
+    embassy_usb_logger::run!(65535, log::LevelFilter::Info, driver, USBSerialHandler);
 }
 
 #[embassy_executor::main]
