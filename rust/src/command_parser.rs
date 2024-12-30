@@ -4,6 +4,9 @@ const BUF_SIZE: usize = 64;
 pub enum Command {
     Ping,
     TxPreambleBytes(u8),
+    SyncWordMSB(u8),
+    SyncWordLSB(u8),
+    SyncMode(u8),
 }
 
 pub struct Parser {
@@ -69,9 +72,41 @@ impl Parser {
             cmd if "tx-preamble-bytes".eq_ignore_ascii_case(cmd) => match tokens.next() {
                 Some(t) => match t.parse::<u8>() {
                     Ok(num_bytes) => Some(Command::TxPreambleBytes(num_bytes)),
-
                     Err(e) => {
                         log::error!("failed to parse tx-preamble-bytes from {}: {}", t, e);
+                        None
+                    }
+                },
+                None => None,
+            },
+
+            cmd if "sync-word-msb".eq_ignore_ascii_case(cmd) => match tokens.next() {
+                Some(t) => match t.parse::<u8>() {
+                    Ok(n) => Some(Command::SyncWordMSB(n)),
+                    Err(e) => {
+                        log::error!("failed to parse number from {}: {}", t, e);
+                        None
+                    }
+                },
+                None => None,
+            },
+
+            cmd if "sync-word-lsb".eq_ignore_ascii_case(cmd) => match tokens.next() {
+                Some(t) => match t.parse::<u8>() {
+                    Ok(n) => Some(Command::SyncWordLSB(n)),
+                    Err(e) => {
+                        log::error!("failed to parse number from {}: {}", t, e);
+                        None
+                    }
+                },
+                None => None,
+            },
+
+            cmd if "sync-mode".eq_ignore_ascii_case(cmd) => match tokens.next() {
+                Some(t) => match t.parse::<u8>() {
+                    Ok(n) => Some(Command::SyncMode(n)),
+                    Err(e) => {
+                        log::error!("failed to parse number from {}: {}", t, e);
                         None
                     }
                 },

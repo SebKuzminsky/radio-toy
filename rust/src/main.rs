@@ -508,6 +508,45 @@ async fn main(spawner: Spawner) -> ! {
                     .unwrap();
             }
 
+            Some(command_parser::Command::SyncWordMSB(n)) => {
+                log::info!("sync-word-msb {}", n);
+                let sync1 = cc1101::lowlevel::registers::SYNC1(n);
+                cc1101
+                    .0
+                    .write_register(cc1101::lowlevel::registers::Config::SYNC1, sync1.bits())
+                    .unwrap();
+            }
+
+            Some(command_parser::Command::SyncWordLSB(n)) => {
+                log::info!("sync-word-lsb {}", n);
+                let sync0 = cc1101::lowlevel::registers::SYNC0(n);
+                cc1101
+                    .0
+                    .write_register(cc1101::lowlevel::registers::Config::SYNC0, sync0.bits())
+                    .unwrap();
+            }
+
+            Some(command_parser::Command::SyncMode(n)) => {
+                log::info!("sync-mode {}", n);
+
+                let r = cc1101
+                    .0
+                    .read_register(cc1101::lowlevel::registers::Config::MDMCFG2)
+                    .unwrap();
+                let mdmcfg2 = cc1101::lowlevel::registers::MDMCFG2(r);
+                log::info!("original MDMCFG2 is 0x{:02x}", mdmcfg2.bits());
+                log::info!("   sync_mode=0x{:02x}", mdmcfg2.sync_mode());
+
+                let mut mdmcfg2 = mdmcfg2.modify();
+                mdmcfg2.sync_mode(n & 0x7);
+                log::info!("new MDMCFG2 is 0x{:02x}", mdmcfg2.bits());
+
+                cc1101
+                    .0
+                    .write_register(cc1101::lowlevel::registers::Config::MDMCFG2, mdmcfg2.bits())
+                    .unwrap();
+            }
+
             None => {}
         }
 
