@@ -398,21 +398,8 @@ async fn main(spawner: Spawner) -> ! {
         )
         .await
         {
-            embassy_futures::select::Either::First(command) => {
-                log::info!("command from tcp: {:?}", command);
-                Some(command)
-            }
-
-            embassy_futures::select::Either::Second(b) => {
-                log::info!("char from usb: {}", b as char);
-                match usb_serial_command_parser.ingest(b) {
-                    Some(command) => {
-                        log::info!("USB command {:?}", command);
-                        Some(command)
-                    }
-                    None => None,
-                }
-            }
+            embassy_futures::select::Either::First(command) => Some(command),
+            embassy_futures::select::Either::Second(b) => usb_serial_command_parser.ingest(b),
         };
 
         match command {
@@ -428,8 +415,6 @@ async fn main(spawner: Spawner) -> ! {
                     .read_register(cc1101::lowlevel::registers::Config::MDMCFG1)
                     .unwrap();
                 let mdmcfg1 = cc1101::lowlevel::registers::MDMCFG1(r);
-                log::info!("original MDMCFG1 is 0x{:02x} 0x{:02x}", r, mdmcfg1.bits());
-                log::info!("   num_preamble=0x{:02x}", mdmcfg1.num_preamble());
                 let mut mdmcfg1 = mdmcfg1.modify();
 
                 // Setting | Number of preamble bytes
@@ -454,7 +439,6 @@ async fn main(spawner: Spawner) -> ! {
                     _ => 7,
                 };
                 mdmcfg1.num_preamble(num_preamble_field);
-                log::info!("new MDMCFG1 is 0x{:02x}", mdmcfg1.bits());
 
                 cc1101
                     .0
@@ -488,12 +472,8 @@ async fn main(spawner: Spawner) -> ! {
                     .read_register(cc1101::lowlevel::registers::Config::MDMCFG2)
                     .unwrap();
                 let mdmcfg2 = cc1101::lowlevel::registers::MDMCFG2(r);
-                log::info!("original MDMCFG2 is 0x{:02x}", mdmcfg2.bits());
-                log::info!("   sync_mode=0x{:02x}", mdmcfg2.sync_mode());
-
                 let mut mdmcfg2 = mdmcfg2.modify();
                 mdmcfg2.sync_mode(n & 0x7);
-                log::info!("new MDMCFG2 is 0x{:02x}", mdmcfg2.bits());
 
                 cc1101
                     .0

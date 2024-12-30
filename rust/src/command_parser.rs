@@ -37,7 +37,6 @@ impl Parser {
             }
 
             b => {
-                log::info!("{}", b as char);
                 let i = self.index;
                 self.buf[i] = b;
                 self.index += 1;
@@ -56,7 +55,6 @@ impl Parser {
             Err(_) => return None,
         };
 
-        log::info!("got line: '{}'", s);
         let mut tokens = s.split_whitespace();
         let cmd = match tokens.next() {
             Some(cmd) => cmd,
@@ -94,7 +92,7 @@ impl Parser {
                 Some(t) => match t.parse::<u8>() {
                     Ok(num_bytes) => Some(Command::TxPreambleBytes(num_bytes)),
                     Err(e) => {
-                        log::error!("failed to parse tx-preamble-bytes from {}: {}", t, e);
+                        log::error!("failed to parse number from {}: {}", t, e);
                         None
                     }
                 },
