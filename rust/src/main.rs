@@ -188,6 +188,8 @@ async fn main(spawner: Spawner) -> ! {
     // Configure the CC1101 for OOK at 433 MHz, 3 kbaud.
     //
 
+    cc1101.reset_chip().unwrap();
+
     cc1101
         .set_fifo_threshold(true, 0, cc1101::FifoThreshold::TX_61_RX_4)
         .unwrap();
